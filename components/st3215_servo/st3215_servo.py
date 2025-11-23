@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import uart, sensor
 from esphome.const import (
     CONF_ID,
@@ -20,11 +21,11 @@ CONF_TURNS = "turns"
 CONF_PERCENT = "percent"
 
 # Actions
-St3215SetAngleAction = st3215_ns.class_("St3215SetAngleAction", cg.Action)
-St3215RotateAction = st3215_ns.class_("St3215RotateAction", cg.Action)
-St3215StopAction = st3215_ns.class_("St3215StopAction", cg.Action)
-St3215MoveToTurnsAction = st3215_ns.class_("St3215MoveToTurnsAction", cg.Action)
-St3215MoveToPercentAction = st3215_ns.class_("St3215MoveToPercentAction", cg.Action)
+St3215SetAngleAction = st3215_ns.class_("St3215SetAngleAction", automation.Action)
+St3215RotateAction = st3215_ns.class_("St3215RotateAction", automation.Action)
+St3215StopAction = st3215_ns.class_("St3215StopAction", automation.Action)
+St3215MoveToTurnsAction = st3215_ns.class_("St3215MoveToTurnsAction", automation.Action)
+St3215MoveToPercentAction = st3215_ns.class_("St3215MoveToPercentAction", automation.Action)
 
 # Top-level platform schema (PollingComponent is OK here)
 CONFIG_SCHEMA = cv.Schema(
