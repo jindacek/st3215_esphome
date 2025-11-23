@@ -9,18 +9,13 @@
 namespace esphome {
 namespace st3215_servo {
 
-// Forward declaration
-class St3215Servo;
-
 class St3215TorqueSwitch : public switch_::Switch, public Component {
  public:
-  void set_parent(St3215Servo *p) { this->parent_ = p; }
-  void write_state(bool state) override;
-
- protected:
-  St3215Servo *parent_{nullptr};
+  void write_state(bool state) override {
+    // zatím dummy – úprava až později
+    this->publish_state(state);
+  }
 };
-
 
 
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
@@ -32,6 +27,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_angle_sensor(sensor::Sensor *s) { angle_sensor_ = s; }
   void set_turns_sensor(sensor::Sensor *s) { turns_sensor_ = s; }
   void set_percent_sensor(sensor::Sensor *s) { percent_sensor_ = s; }
+  void set_torque_sensor(sensor::Sensor *s) { torque_sensor_ = s; }
   void set_torque_switch(St3215TorqueSwitch *s);
 
   void setup() override;
@@ -59,6 +55,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *angle_sensor_{nullptr};
   sensor::Sensor *turns_sensor_{nullptr};
   sensor::Sensor *percent_sensor_{nullptr};
+  sensor::Sensor *torque_sensor_{nullptr};
   St3215TorqueSwitch *torque_switch_{nullptr};
 
   // state
@@ -72,63 +69,72 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   static constexpr int DEFAULT_ACC = 50;
 };
 
-template<typename... Ts>
-class St3215RotateAction : public Action<Ts...> {
+
+// -----------------------------
+// Automation actions (ESPHome 2024+ non-templated)
+// -----------------------------
+class St3215RotateAction : public Action<> {
  public:
-  explicit St3215RotateAction(St3215Servo *parent) : parent_(parent) {}
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
   void set_cw(bool cw) { cw_ = cw; }
   void set_speed(int speed) { speed_ = speed; }
-  void play(Ts... x) override { parent_->rotate(cw_, speed_); }
+  void play() override {
+    if (parent_ != nullptr) parent_->rotate(cw_, speed_);
+  }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
   bool cw_{true};
   int speed_{600};
 };
 
-template<typename... Ts>
-class St3215StopAction : public Action<Ts...> {
+class St3215StopAction : public Action<> {
  public:
-  explicit St3215StopAction(St3215Servo *parent) : parent_(parent) {}
-  void play(Ts... x) override { parent_->stop(); }
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
+  void play() override {
+    if (parent_ != nullptr) parent_->stop();
+  }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
 };
 
-template<typename... Ts>
-class St3215MoveRelativeAction : public Action<Ts...> {
+class St3215SetAngleAction : public Action<> {
  public:
-  explicit St3215MoveRelativeAction(St3215Servo *parent) : parent_(parent) {}
-  void set_turns(float t) { turns_ = t; }
-  void set_speed(int s) { speed_ = s; }
-  void play(Ts... x) override { parent_->move_relative(turns_, speed_); }
- protected:
-  St3215Servo *parent_;
-  float turns_{0};
-  int speed_{600};
-};
-
-template<typename... Ts>
-class St3215SetAngleAction : public Action<Ts...> {
- public:
-  explicit St3215SetAngleAction(St3215Servo *parent) : parent_(parent) {}
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
   void set_angle(float a) { angle_ = a; }
   void set_speed(int s) { speed_ = s; }
-  void play(Ts... x) override { parent_->set_angle(angle_, speed_); }
+  void play() override {
+    if (parent_ != nullptr) parent_->set_angle(angle_, speed_);
+  }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
   float angle_{0};
   int speed_{600};
 };
 
-template<typename... Ts>
-class St3215MoveToPercentAction : public Action<Ts...> {
+class St3215MoveRelativeAction : public Action<> {
  public:
-  explicit St3215MoveToPercentAction(St3215Servo *parent) : parent_(parent) {}
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
+  void set_turns(float t) { turns_ = t; }
+  void set_speed(int s) { speed_ = s; }
+  void play() override {
+    if (parent_ != nullptr) parent_->move_relative(turns_, speed_);
+  }
+ protected:
+  St3215Servo *parent_{nullptr};
+  float turns_{0};
+  int speed_{600};
+};
+
+class St3215MoveToPercentAction : public Action<> {
+ public:
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
   void set_percent(float p) { percent_ = p; }
   void set_speed(int s) { speed_ = s; }
-  void play(Ts... x) override { parent_->move_to_percent(percent_, speed_); }
+  void play() override {
+    if (parent_ != nullptr) parent_->move_to_percent(percent_, speed_);
+  }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
   float percent_{0};
   int speed_{600};
 };

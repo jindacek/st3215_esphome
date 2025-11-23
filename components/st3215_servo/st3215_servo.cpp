@@ -14,7 +14,6 @@ void St3215TorqueSwitch::write_state(bool state) {
 void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
   torque_switch_ = s;
   if (torque_switch_ != nullptr) {
-    torque_switch_->set_parent(this);
     torque_switch_->publish_state(torque_on_);
   }
 }
