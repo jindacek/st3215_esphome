@@ -1,5 +1,5 @@
 name: st3215_servo
-version: 0.1.0
+version: 0.2.0
 
 build:
   include:
@@ -13,9 +13,7 @@ dependencies:
     components:
       - uart
       - sensor
-      - number
-      - text_sensor
-    excludes:
+      - switch
       - button
 
 codeowners:
