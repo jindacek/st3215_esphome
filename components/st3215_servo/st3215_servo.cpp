@@ -155,34 +155,32 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   if (speed < 0) speed = 0;
   if (speed > 3400) speed = 3400;
 
-  // ensure torque on for moves
   if (!torque_on_) set_torque(true);
 
   float target_turns = turns_unwrapped_ + turns_delta;
-  int32_t target_raw = (int32_t) lroundf(target_turns * RAW_PER_TURN);
-
+  int32_t target_raw = lroundf(target_turns * RAW_PER_TURN);
   if (target_raw < 0) target_raw = 0;
   if (target_raw > 65535) target_raw = 65535;
 
   uint16_t pos = (uint16_t) target_raw;
   uint16_t spd = (uint16_t) speed;
 
-  // ✅ WritePosEx podle STServo SDK:
-  // write 7 bytes starting at STS_ACC (0x29):
-  // [acc, posL, posH, 0, 0, speedL, speedH]
   std::vector<uint8_t> params;
-  params.reserve(1 + 7);
-  params.push_back(0x29);          // STS_ACC start addr
-  params.push_back(DEFAULT_ACC);   // acc
-  params.push_back(pos & 0xFF);    // posL
-  params.push_back((pos >> 8) & 0xFF); // posH
-  params.push_back(0x00);          // reserved
-  params.push_back(0x00);          // reserved
-  params.push_back(spd & 0xFF);    // speedL
-  params.push_back((spd >> 8) & 0xFF); // speedH
+  params.reserve(1 + 1 + 7);
+
+  params.push_back(0x29);       // Start address
+  params.push_back(7);          // Data length
+  params.push_back(DEFAULT_ACC);
+  params.push_back(pos & 0xFF);
+  params.push_back((pos >> 8) & 0xFF);
+  params.push_back(0x00);
+  params.push_back(0x00);
+  params.push_back(spd & 0xFF);
+  params.push_back((spd >> 8) & 0xFF);
 
   send_packet_(servo_id_, 0x03, params);
 }
+
 
 
 void St3215Servo::set_angle(float angle_deg, int speed) {
