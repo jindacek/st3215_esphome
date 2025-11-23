@@ -30,11 +30,13 @@ St3215MoveToPercentAction = st3215_ns.class_("St3215MoveToPercentAction", cg.Act
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(St3215Servo),
+
         cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
         cv.Optional(CONF_SERVO_ID, default=1): cv.int_range(min=0, max=253),
         cv.Optional(CONF_MAX_ANGLE, default=240.0): cv.float_range(min=1.0, max=3600.0),
         cv.Optional(CONF_TURNS_FULL_OPEN, default=0.0): cv.float_,
 
+        # sensors
         cv.Optional(CONF_ANGLE): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREE,
             icon=ICON_ROTATE_RIGHT,
@@ -52,6 +54,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.polling_component_schema("500ms"))
+
 
 
 async def to_code(config):
