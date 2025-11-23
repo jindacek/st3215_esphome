@@ -19,12 +19,14 @@ CONF_ANGLE = "angle"
 CONF_TURNS = "turns"
 CONF_PERCENT = "percent"
 
+# Actions
 St3215SetAngleAction = st3215_ns.class_("St3215SetAngleAction", cg.Action)
 St3215RotateAction = st3215_ns.class_("St3215RotateAction", cg.Action)
 St3215StopAction = st3215_ns.class_("St3215StopAction", cg.Action)
 St3215MoveToTurnsAction = st3215_ns.class_("St3215MoveToTurnsAction", cg.Action)
 St3215MoveToPercentAction = st3215_ns.class_("St3215MoveToPercentAction", cg.Action)
 
+# Top-level platform schema (PollingComponent is OK here)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(St3215Servo),
@@ -70,6 +72,7 @@ async def to_code(config):
     if CONF_PERCENT in config:
         s = await sensor.new_sensor(config[CONF_PERCENT])
         cg.add(var.set_percent_sensor(s))
+
 
 @cg.register_action(
     "st3215_servo.set_angle",
