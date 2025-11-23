@@ -21,18 +21,8 @@ class St3215TorqueSwitch : public switch_::Switch, public Component {
   void set_parent(St3215Servo *parent) { parent_ = parent; }
 
  protected:
-  void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
+  St3215Servo *parent_{nullptr};
 };
-
-void St3215Servo::write_registers_(uint8_t addr, const std::vector<uint8_t> &data) {
-  std::vector<uint8_t> params;
-  params.reserve(2 + data.size());
-  params.push_back(addr);
-  params.push_back((uint8_t) data.size());   // <-- DŮLEŽITÝ BYTE navíc
-  params.insert(params.end(), data.begin(), data.end());
-  write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
-}
-
 
 // -----------------------------
 // Main Servo Component
@@ -63,11 +53,11 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_torque(bool on);
 
  protected:
-  // protocol helpers (as in V5)
+  // protocol helpers
   uint8_t checksum_(const uint8_t *data, size_t len);
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
-  void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
+  void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
 
   uint8_t servo_id_{1};
   float max_angle_{240.0f};
@@ -91,7 +81,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 };
 
 // -----------------------------
-// Automation actions (ESPHome 2025 non-templated)
+// Automation actions
 // -----------------------------
 class St3215RotateAction : public Action<> {
  public:
