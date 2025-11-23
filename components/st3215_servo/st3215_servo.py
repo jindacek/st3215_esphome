@@ -75,7 +75,7 @@ async def rotate_to_code(config, action_id):
     par = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_parent(par))
     cg.add(var.set_direction(DIRECTIONS[config[CONF_DIRECTION]]))
-    cg.add(var.set_speed(config[CONF_SPEED]])
+    cg.add(var.set_speed(config[CONF_SPEED]))
     return var
 
 
