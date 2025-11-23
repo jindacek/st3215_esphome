@@ -32,23 +32,25 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SERVO_ID, default=1): cv.int_range(min=0, max=253),
         cv.Optional(CONF_MAX_ANGLE, default=240.0): cv.float_range(min=1.0, max=3600.0),
         cv.Optional(CONF_TURNS_FULL_OPEN, default=0.0): cv.float_,
+
         cv.Optional(CONF_ANGLE): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREE,
             icon=ICON_ROTATE_RIGHT,
-            accuracy_decimals=1
+            accuracy_decimals=1,
         ),
         cv.Optional(CONF_TURNS): sensor.sensor_schema(
             unit_of_measurement="turns",
             icon=ICON_ROTATE_RIGHT,
-            accuracy_decimals=3
+            accuracy_decimals=3,
         ),
         cv.Optional(CONF_PERCENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
             icon="mdi:blinds",
-            accuracy_decimals=0
+            accuracy_decimals=0,
+        ),
     }
-  )
-)
+).extend(cv.polling_component_schema("500ms"))
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
