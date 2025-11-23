@@ -53,7 +53,7 @@ CONFIG_SCHEMA = (
                 icon="mdi:blinds",
             ),
             cv.Optional(CONF_TORQUE): switch.switch_schema(
-                icon="mdi:arm-flex",
+                st3215_ns.class_("St3215TorqueSwitch")
             ),
         }
     )
