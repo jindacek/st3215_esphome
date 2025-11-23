@@ -1,12 +1,12 @@
 name: st3215_servo
 version: 0.1.0
 
+platforms:
+  - st3215_servo
+
 build:
   include:
     - components
-
-platforms:
-  - st3215_servo
 
 dependencies:
   esphome:
