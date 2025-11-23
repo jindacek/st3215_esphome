@@ -9,32 +9,34 @@
 namespace esphome {
 namespace st3215_servo {
 
-class St3215TorqueSwitch : public switch_::Switch, public Component {
- public:
-  void write_state(bool state) override;
+class St3215Servo;  // forward declaration
 
-
+// -----------------------------
+// Torque Switch
+// -----------------------------
 class St3215TorqueSwitch : public switch_::Switch {
  public:
-  void write_state(bool state) override;   // deklarace
-  void set_parent(St3215Servo *parent) { this->parent_ = parent; }
+  void write_state(bool state) override;         // defined in .cpp
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
 
  protected:
   St3215Servo *parent_{nullptr};
 };
 
-
+// -----------------------------
+// Main Servo Component
+// -----------------------------
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
  public:
   void set_servo_id(uint8_t id) { servo_id_ = id; }
   void set_max_angle(float deg) { max_angle_ = deg; }
-  void set_turns_full_open(float turns) { turns_full_open_ = turns; }
+  void set_turns_full_open(float t) { turns_full_open_ = t; }
 
   void set_angle_sensor(sensor::Sensor *s) { angle_sensor_ = s; }
   void set_turns_sensor(sensor::Sensor *s) { turns_sensor_ = s; }
   void set_percent_sensor(sensor::Sensor *s) { percent_sensor_ = s; }
   void set_torque_sensor(sensor::Sensor *s) { torque_sensor_ = s; }
-  void set_torque_switch(St3215TorqueSwitch *s);
+  void set_torque_switch(St3215TorqueSwitch *s) { torque_switch_ = s; }
 
   void setup() override;
   void update() override;
@@ -49,14 +51,13 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_torque(bool on);
 
  protected:
-  // protocol helpers
   uint8_t checksum_(const uint8_t *data, size_t len);
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
 
   uint8_t servo_id_{1};
   float max_angle_{240.0f};
-  float turns_full_open_{0.0f};
+  float turns_full_open_{0};
 
   sensor::Sensor *angle_sensor_{nullptr};
   sensor::Sensor *turns_sensor_{nullptr};
@@ -64,29 +65,26 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *torque_sensor_{nullptr};
   St3215TorqueSwitch *torque_switch_{nullptr};
 
-  // state
   uint16_t last_raw_pos_{0};
   float turns_unwrapped_{0.0f};
   bool have_last_{false};
   bool torque_on_{true};
 
-  static constexpr float RAW_PER_TURN = 4096.0f;  // confirmed by your readings
-  static constexpr float CW_CCW_STEP_TURNS = 10.5f;  // per click default
+  static constexpr float RAW_PER_TURN = 4096.0f;
+  static constexpr float CW_CCW_STEP_TURNS = 10.5f;
   static constexpr int DEFAULT_ACC = 50;
 };
 
-
 // -----------------------------
-// Automation actions (ESPHome 2024+ non-templated)
+// Automation actions
 // -----------------------------
 class St3215RotateAction : public Action<> {
  public:
-  void set_parent(St3215Servo *parent) { parent_ = parent; }
+  void set_parent(St3215Servo *p) { parent_ = p; }
   void set_cw(bool cw) { cw_ = cw; }
-  void set_speed(int speed) { speed_ = speed; }
-  void play() override {
-    if (parent_ != nullptr) parent_->rotate(cw_, speed_);
-  }
+  void set_speed(int s) { speed_ = s; }
+  void play() override { if (parent_) parent_->rotate(cw_, speed_); }
+
  protected:
   St3215Servo *parent_{nullptr};
   bool cw_{true};
@@ -95,22 +93,20 @@ class St3215RotateAction : public Action<> {
 
 class St3215StopAction : public Action<> {
  public:
-  void set_parent(St3215Servo *parent) { parent_ = parent; }
-  void play() override {
-    if (parent_ != nullptr) parent_->stop();
-  }
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void play() override { if (parent_) parent_->stop(); }
+
  protected:
   St3215Servo *parent_{nullptr};
 };
 
 class St3215SetAngleAction : public Action<> {
  public:
-  void set_parent(St3215Servo *parent) { parent_ = parent; }
+  void set_parent(St3215Servo *p) { parent_ = p; }
   void set_angle(float a) { angle_ = a; }
   void set_speed(int s) { speed_ = s; }
-  void play() override {
-    if (parent_ != nullptr) parent_->set_angle(angle_, speed_);
-  }
+  void play() override { if (parent_) parent_->set_angle(angle_, speed_); }
+
  protected:
   St3215Servo *parent_{nullptr};
   float angle_{0};
@@ -119,12 +115,11 @@ class St3215SetAngleAction : public Action<> {
 
 class St3215MoveRelativeAction : public Action<> {
  public:
-  void set_parent(St3215Servo *parent) { parent_ = parent; }
+  void set_parent(St3215Servo *p) { parent_ = p; }
   void set_turns(float t) { turns_ = t; }
   void set_speed(int s) { speed_ = s; }
-  void play() override {
-    if (parent_ != nullptr) parent_->move_relative(turns_, speed_);
-  }
+  void play() override { if (parent_) parent_->move_relative(turns_, speed_); }
+
  protected:
   St3215Servo *parent_{nullptr};
   float turns_{0};
@@ -133,12 +128,11 @@ class St3215MoveRelativeAction : public Action<> {
 
 class St3215MoveToPercentAction : public Action<> {
  public:
-  void set_parent(St3215Servo *parent) { parent_ = parent; }
-  void set_percent(float p) { percent_ = p; }
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_percent(float pr) { percent_ = pr; }
   void set_speed(int s) { speed_ = s; }
-  void play() override {
-    if (parent_ != nullptr) parent_->move_to_percent(percent_, speed_);
-  }
+  void play() override { if (parent_) parent_->move_to_percent(percent_, speed_); }
+
  protected:
   St3215Servo *parent_{nullptr};
   float percent_{0};
