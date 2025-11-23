@@ -1,3 +1,4 @@
+from esphome.components import sensor
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
@@ -27,11 +28,17 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Required(CONF_SERVO_ID): cv.int_range(min=0, max=100),
             cv.Required(CONF_TURNS_FULL_OPEN): cv.float_,
+
+            cv.Optional("angle"): sensor.sensor_schema(),
+            cv.Optional("turns"): sensor.sensor_schema(),
+            cv.Optional("percent"): sensor.sensor_schema(),
+            cv.Optional("torque"): sensor.sensor_schema(),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
+
 
 
 async def to_code(config):
