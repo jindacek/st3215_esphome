@@ -24,6 +24,16 @@ class St3215TorqueSwitch : public switch_::Switch, public Component {
   St3215Servo *parent_{nullptr};
 };
 
+void St3215Servo::write_registers_(uint8_t addr, const std::vector<uint8_t> &data) {
+  std::vector<uint8_t> params;
+  params.reserve(2 + data.size());
+  params.push_back(addr);
+  params.push_back((uint8_t) data.size());   // <-- DŮLEŽITÝ BYTE navíc
+  params.insert(params.end(), data.begin(), data.end());
+  send_packet_(servo_id_, 0x03, params);
+}
+
+
 // -----------------------------
 // Main Servo Component
 // -----------------------------
@@ -56,6 +66,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   // protocol helpers (as in V5)
   uint8_t checksum_(const uint8_t *data, size_t len);
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
+  void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
 
   uint8_t servo_id_{1};
