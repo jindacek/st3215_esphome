@@ -4,6 +4,9 @@ from esphome.components import uart, sensor, switch
 from esphome import automation
 from esphome.const import CONF_ID, CONF_UART_ID, CONF_SPEED
 
+DEPENDENCIES = ["uart", "sensor", "switch"]
+AUTO_LOAD = ["switch"]
+
 st3215_ns = cg.esphome_ns.namespace("st3215_servo")
 St3215Servo = st3215_ns.class_("St3215Servo", cg.Component, uart.UARTDevice)
 St3215TorqueSwitch = st3215_ns.class_("St3215TorqueSwitch", switch.Switch, cg.Component)
