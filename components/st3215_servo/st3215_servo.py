@@ -50,11 +50,23 @@ async def to_code(config):
     cg.add(var.set_servo_id(config[CONF_SERVO_ID]))
     cg.add(var.set_turns_full_open(config[CONF_TURNS_FULL_OPEN]))
 
-    # Sensors (if defined)
-    for key in ["angle", "turns", "percent", "torque"]:
-        if key in config:
-            sens = yield cg.new_sensor(config[key])
-            cg.add(getattr(var, f"set_{key}_sensor")(sens))
+    # Sensors
+    if "angle" in config:
+        sens = await sensor.new_sensor(config["angle"])
+        cg.add(var.set_angle_sensor(sens))
+
+    if "turns" in config:
+        sens = await sensor.new_sensor(config["turns"])
+        cg.add(var.set_turns_sensor(sens))
+
+    if "percent" in config:
+        sens = await sensor.new_sensor(config["percent"])
+        cg.add(var.set_percent_sensor(sens))
+
+    if "torque" in config:
+        sens = await sensor.new_sensor(config["torque"])
+        cg.add(var.set_torque_sensor(sens))
+
 
 
 # -----------------------------
