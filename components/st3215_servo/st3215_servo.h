@@ -16,7 +16,7 @@ static const uint8_t ADDR_GOAL_TIME_L        = 0x2C;
 static const uint8_t ADDR_GOAL_SPEED_L       = 0x2E;
 static const uint8_t ADDR_PRESENT_POSITION_L = 0x38;
 
-class St3215Servo : public PollingComponent, public uart::UARTDevice {
+class St3215Servo : public Component, public uart::UARTDevice, public PollingComponent {
  public:
   void set_servo_id(uint8_t id) { servo_id_ = id; }
   void set_max_angle(float deg) { max_angle_ = deg; }
