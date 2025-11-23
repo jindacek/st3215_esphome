@@ -14,9 +14,11 @@ void St3215TorqueSwitch::write_state(bool state) {
 void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
   torque_switch_ = s;
   if (torque_switch_ != nullptr) {
+    torque_switch_->set_parent(this);   // ✅ důležité
     torque_switch_->publish_state(torque_on_);
   }
 }
+
 
 // ---- Protocol helpers ----
 uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
