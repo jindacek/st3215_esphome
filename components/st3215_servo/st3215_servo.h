@@ -30,7 +30,7 @@ void St3215Servo::write_registers_(uint8_t addr, const std::vector<uint8_t> &dat
   params.push_back(addr);
   params.push_back((uint8_t) data.size());   // <-- DŮLEŽITÝ BYTE navíc
   params.insert(params.end(), data.begin(), data.end());
-  send_packet_(servo_id_, 0x03, params);
+  write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
 }
 
 
