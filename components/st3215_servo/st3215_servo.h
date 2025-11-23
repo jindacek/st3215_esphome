@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/switch/switch.h"
+#include <vector>
 
 namespace esphome {
 namespace st3215_servo {
@@ -11,10 +13,24 @@ static const uint8_t INST_PING  = 0x01;
 static const uint8_t INST_READ  = 0x02;
 static const uint8_t INST_WRITE = 0x03;
 
+static const uint8_t ADDR_TORQUE_ENABLE      = 0x28;
+static const uint8_t ADDR_TORQUE_LIMIT       = 0x29;
 static const uint8_t ADDR_GOAL_POSITION_L    = 0x2A;
 static const uint8_t ADDR_GOAL_TIME_L        = 0x2C;
 static const uint8_t ADDR_GOAL_SPEED_L       = 0x2E;
 static const uint8_t ADDR_PRESENT_POSITION_L = 0x38;
+
+class St3215Servo;  // forward declaration
+
+// Torque switch entity
+class St3215TorqueSwitch : public switch_::Switch, public Component {
+ public:
+  void write_state(bool state) override;
+  void set_parent(St3215Servo *parent) { parent_ = parent; }
+
+ protected:
+  St3215Servo *parent_{nullptr};
+};
 
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
  public:
@@ -26,14 +42,18 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_turns_sensor(sensor::Sensor *s) { turns_sensor_ = s; }
   void set_percent_sensor(sensor::Sensor *s) { percent_sensor_ = s; }
 
+  void set_torque_switch(St3215TorqueSwitch *s);
+
   void setup() override;
   void update() override;
+  void dump_config() override;
 
   void rotate(bool cw, int speed);
   void stop();
   void set_angle(float degrees, int speed = 600);
   void move_to_turns(float turns, int speed = 600);
   void move_to_percent(float percent, int speed = 600);
+  void set_torque(bool on);
 
  protected:
   void send_write_(uint8_t addr, const std::vector<uint8_t> &data);
@@ -52,87 +72,71 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *turns_sensor_{nullptr};
   sensor::Sensor *percent_sensor_{nullptr};
 
+  St3215TorqueSwitch *torque_switch_{nullptr};
+  bool torque_on_{true};
+
   float current_angle_{0.0f};
   float current_turns_{0.0f};
   float last_angle_{0.0f};
   bool has_last_angle_{false};
 };
 
-
 // ---------------- Actions (ESPHome 2025 compatible) ----------------
-
-template<typename... Ts>
-class St3215SetAngleAction : public Action<Ts...> {
+class St3215RotateAction : public Action<> {
  public:
-  explicit St3215SetAngleAction(St3215Servo *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, angle)
-  TEMPLATABLE_VALUE(int, speed)
-
-  void play(Ts... x) override {
-    parent_->set_angle(angle_.value(x...), speed_.value(x...));
-  }
-
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_cw(bool cw) { cw_ = cw; }
+  void set_speed(int speed) { speed_ = speed; }
+  void play() override { if (parent_) parent_->rotate(cw_, speed_); }
  protected:
-  St3215Servo *parent_;
-};
-
-template<typename... Ts>
-class St3215RotateAction : public Action<Ts...> {
- public:
-  explicit St3215RotateAction(St3215Servo *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(int, speed)
-
-  void set_direction(bool cw) { cw_ = cw; }
-
-  void play(Ts... x) override {
-    parent_->rotate(cw_, speed_.value(x...));
-  }
-
- protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
   bool cw_{true};
+  int speed_{600};
 };
 
-template<typename... Ts>
-class St3215StopAction : public Action<Ts...> {
+class St3215StopAction : public Action<> {
  public:
-  explicit St3215StopAction(St3215Servo *parent) : parent_(parent) {}
-  void play(Ts... x) override { parent_->stop(); }
-
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void play() override { if (parent_) parent_->stop(); }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
 };
 
-template<typename... Ts>
-class St3215MoveToTurnsAction : public Action<Ts...> {
+class St3215SetAngleAction : public Action<> {
  public:
-  explicit St3215MoveToTurnsAction(St3215Servo *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, turns)
-  TEMPLATABLE_VALUE(int, speed)
-
-  void play(Ts... x) override {
-    parent_->move_to_turns(turns_.value(x...), speed_.value(x...));
-  }
-
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_angle(float a) { angle_ = a; }
+  void set_speed(int s) { speed_ = s; }
+  void play() override { if (parent_) parent_->set_angle(angle_, speed_); }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
+  float angle_{0};
+  int speed_{600};
 };
 
-template<typename... Ts>
-class St3215MoveToPercentAction : public Action<Ts...> {
+class St3215MoveToTurnsAction : public Action<> {
  public:
-  explicit St3215MoveToPercentAction(St3215Servo *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, percent)
-  TEMPLATABLE_VALUE(int, speed)
-
-  void play(Ts... x) override {
-    parent_->move_to_percent(percent_.value(x...), speed_.value(x...));
-  }
-
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_turns(float t) { turns_ = t; }
+  void set_speed(int s) { speed_ = s; }
+  void play() override { if (parent_) parent_->move_to_turns(turns_, speed_); }
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
+  float turns_{0};
+  int speed_{600};
+};
+
+class St3215MoveToPercentAction : public Action<> {
+ public:
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_percent(float pr) { percent_ = pr; }
+  void set_speed(int s) { speed_ = s; }
+  void play() override { if (parent_) parent_->move_to_percent(percent_, speed_); }
+ protected:
+  St3215Servo *parent_{nullptr};
+  float percent_{0};
+  int speed_{600};
 };
 
 }  // namespace st3215_servo
 }  // namespace esphome
-

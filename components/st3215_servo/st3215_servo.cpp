@@ -7,8 +7,25 @@ namespace st3215_servo {
 static const char *const TAG = "st3215_servo";
 static const uint32_t RESPONSE_TIMEOUT_MS = 25;
 
+
+void St3215TorqueSwitch::write_state(bool state) {
+  if (parent_ != nullptr) parent_->set_torque(state);
+  this->publish_state(state);
+}
+
+void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
+  torque_switch_ = s;
+  if (torque_switch_ != nullptr) {
+    torque_switch_->set_parent(this);
+    torque_switch_->publish_state(torque_on_);
+  }
+}
+
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
+  // enable torque and set a safe default torque limit (100%)
+  this->send_write_(ADDR_TORQUE_LIMIT, {100});
+  this->set_torque(true);
 }
 
 
@@ -71,6 +88,7 @@ bool St3215Servo::send_read_(uint8_t addr, uint8_t len, std::vector<uint8_t> &ou
 }
 
 void St3215Servo::rotate(bool cw, int speed) {
+  if (!torque_on_) set_torque(true);
   speed = clamp(speed, 0, 1000);
   int16_t signed_speed = cw ? speed : -speed;
   uint16_t raw = (uint16_t) signed_speed;
@@ -81,6 +99,7 @@ void St3215Servo::rotate(bool cw, int speed) {
 void St3215Servo::stop() { rotate(true, 0); }
 
 void St3215Servo::set_angle(float degrees, int speed) {
+  if (!torque_on_) set_torque(true);
   degrees = clamp(degrees, 0.0f, max_angle_);
   speed = clamp(speed, 0, 1000);
   uint16_t pos = (uint16_t)(degrees / max_angle_ * 4095.0f);
@@ -116,6 +135,13 @@ void St3215Servo::move_to_percent(float percent, int speed) {
   if (turns_full_open_ <= 0.0f) return;
   percent = clamp(percent, 0.0f, 100.0f);
   move_to_turns((percent / 100.0f) * turns_full_open_, speed);
+}
+
+void St3215Servo::dump_config() {
+  ESP_LOGCONFIG(TAG, "ST3215 Servo:");
+  ESP_LOGCONFIG(TAG, "  ID: %u", servo_id_);
+  ESP_LOGCONFIG(TAG, "  Max angle: %.1f", max_angle_);
+  ESP_LOGCONFIG(TAG, "  Turns full open: %.3f", turns_full_open_);
 }
 
 void St3215Servo::update() {
