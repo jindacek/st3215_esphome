@@ -8,6 +8,15 @@
 namespace esphome {
 namespace st3215_servo {
 
+class St3215TorqueSwitch : public switch_::Switch, public Component {
+ public:
+  void write_state(bool state) override {
+    // zatím dummy – úprava až později
+    this->publish_state(state);
+  }
+};
+
+
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
  public:
   void set_servo_id(uint8_t id) { servo_id_ = id; }
