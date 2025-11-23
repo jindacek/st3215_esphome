@@ -14,7 +14,7 @@ class St3215Servo;  // forward declaration
 // -----------------------------
 // Torque Switch
 // -----------------------------
-class St3215TorqueSwitch : public switch_::Switch {
+class St3215TorqueSwitch : public switch_::Switch, public Component {
  public:
   void write_state(bool state) override;         // defined in .cpp
   void set_parent(St3215Servo *parent) { parent_ = parent; }
@@ -36,7 +36,8 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_turns_sensor(sensor::Sensor *s) { turns_sensor_ = s; }
   void set_percent_sensor(sensor::Sensor *s) { percent_sensor_ = s; }
   void set_torque_sensor(sensor::Sensor *s) { torque_sensor_ = s; }
-  void set_torque_switch(St3215TorqueSwitch *s) { torque_switch_ = s; }
+
+  void set_torque_switch(St3215TorqueSwitch *s);   // DECLARATION ONLY
 
   void setup() override;
   void update() override;
