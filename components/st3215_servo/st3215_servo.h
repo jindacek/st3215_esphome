@@ -11,10 +11,16 @@ namespace st3215_servo {
 
 class St3215TorqueSwitch : public switch_::Switch, public Component {
  public:
-  void write_state(bool state) override {
-    // zatím dummy – úprava až později
-    this->publish_state(state);
-  }
+  void write_state(bool state) override;
+
+
+class St3215TorqueSwitch : public switch_::Switch {
+ public:
+  void write_state(bool state) override;   // deklarace
+  void set_parent(St3215Servo *parent) { this->parent_ = parent; }
+
+ protected:
+  St3215Servo *parent_{nullptr};
 };
 
 
