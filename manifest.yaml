@@ -1,0 +1,20 @@
+name: st3215_servo
+version: 0.1.0
+
+build:
+  include:
+    - components
+
+platforms:
+  - st3215_servo
+
+dependencies:
+  esphome:
+    components:
+      - uart
+      - sensor
+      - number
+      - text_sensor
+
+codeowners:
+  - "@jindacek"
