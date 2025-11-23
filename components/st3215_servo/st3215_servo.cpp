@@ -211,32 +211,34 @@ void St3215Servo::rotate(bool cw, int speed) {
 //  MOVE RELATIVE
 // =====================================================================
 void St3215Servo::move_relative(float turns_delta, int speed) {
-  if (!torque_on_)
-    set_torque(true);
+  if (speed < 0) speed = 0;
+  if (speed > 3400) speed = 3400;
+  if (!torque_on_) set_torque(true);
 
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw = (int32_t) lroundf(target_turns * RAW_PER_TURN);
 
-  if (target_raw < 0)
-    target_raw = 0;
-  if (target_raw > 65535)
-    target_raw = 65535;
+  if (target_raw < 0) target_raw = 0;
+  if (target_raw > 65535) target_raw = 65535;
 
   uint16_t pos = (uint16_t)target_raw;
   uint16_t spd = (uint16_t)speed;
 
-  std::vector<uint8_t> params = {
-      0x2E,
+  // STS WritePosEx: start at ACC (0x29)
+  // data = [acc, posL, posH, 0, 0, speedL, speedH]
+  std::vector<uint8_t> data = {
+      DEFAULT_ACC,
       (uint8_t)(pos & 0xFF),
       (uint8_t)((pos >> 8) & 0xFF),
+      0x00,
+      0x00,
       (uint8_t)(spd & 0xFF),
       (uint8_t)((spd >> 8) & 0xFF),
-      DEFAULT_ACC,
-      0x00
   };
 
-  send_packet_(servo_id_, 0x03, params);
+  write_registers_(0x29, data);
 }
+
 
 // =====================================================================
 //  SET ANGLE
