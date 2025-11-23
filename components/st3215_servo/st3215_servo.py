@@ -89,7 +89,7 @@ ROTATE_SCHEMA = cv.Schema(
     St3215RotateAction,
     ROTATE_SCHEMA,
 )
-async def rotate_to_code(config, action_id):
+async def rotate_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id)
     par = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_parent(par))
@@ -114,8 +114,9 @@ STOP_SCHEMA = cv.Schema(
     St3215StopAction,
     STOP_SCHEMA,
 )
-async def stop_to_code(config, action_id):
+async def stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id)
     par = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_parent(par))
     return var
+
