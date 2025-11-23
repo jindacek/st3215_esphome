@@ -4,7 +4,7 @@ from esphome.components import uart, sensor
 from esphome.const import (
     CONF_ID,
     CONF_UART_ID,
-    UNIT_DEGREE,
+    UNIT_DEGREES,
     UNIT_PERCENT,
     ICON_ROTATE_RIGHT,
 )
