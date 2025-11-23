@@ -21,7 +21,7 @@ class St3215TorqueSwitch : public switch_::Switch, public Component {
   void set_parent(St3215Servo *parent) { parent_ = parent; }
 
  protected:
-  St3215Servo *parent_{nullptr};
+  void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
 };
 
 void St3215Servo::write_registers_(uint8_t addr, const std::vector<uint8_t> &data) {
