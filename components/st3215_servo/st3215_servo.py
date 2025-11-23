@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
 
         # sensors
         cv.Optional(CONF_ANGLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREE,
+            unit_of_measurement=UNIT_DEGREES,
             icon=ICON_ROTATE_RIGHT,
             accuracy_decimals=1,
         ),
