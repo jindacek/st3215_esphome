@@ -61,78 +61,78 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
 // ---------------- Actions (ESPHome 2025 compatible) ----------------
 
-class St3215SetAngleAction : public Action<> {
+template<typename... Ts>
+class St3215SetAngleAction : public Action<Ts...> {
  public:
   explicit St3215SetAngleAction(St3215Servo *parent) : parent_(parent) {}
-  void set_angle(TemplatableValue<float> v) { angle_ = v; }
-  void set_speed(TemplatableValue<int> v) { speed_ = v; }
+  TEMPLATABLE_VALUE(float, angle)
+  TEMPLATABLE_VALUE(int, speed)
 
-  void play() override {
-    parent_->set_angle(angle_.value(), speed_.value());
+  void play(Ts... x) override {
+    parent_->set_angle(angle_.value(x...), speed_.value(x...));
   }
 
  protected:
   St3215Servo *parent_;
-  TemplatableValue<float> angle_;
-  TemplatableValue<int> speed_;
 };
 
-class St3215RotateAction : public Action<> {
+template<typename... Ts>
+class St3215RotateAction : public Action<Ts...> {
  public:
   explicit St3215RotateAction(St3215Servo *parent) : parent_(parent) {}
-  void set_direction(bool cw) { cw_ = cw; }
-  void set_speed(TemplatableValue<int> v) { speed_ = v; }
+  TEMPLATABLE_VALUE(int, speed)
 
-  void play() override {
-    parent_->rotate(cw_, speed_.value());
+  void set_direction(bool cw) { cw_ = cw; }
+
+  void play(Ts... x) override {
+    parent_->rotate(cw_, speed_.value(x...));
   }
 
  protected:
   St3215Servo *parent_;
   bool cw_{true};
-  TemplatableValue<int> speed_;
 };
 
-class St3215StopAction : public Action<> {
+template<typename... Ts>
+class St3215StopAction : public Action<Ts...> {
  public:
   explicit St3215StopAction(St3215Servo *parent) : parent_(parent) {}
-  void play() override { parent_->stop(); }
+  void play(Ts... x) override { parent_->stop(); }
 
  protected:
   St3215Servo *parent_;
 };
 
-class St3215MoveToTurnsAction : public Action<> {
+template<typename... Ts>
+class St3215MoveToTurnsAction : public Action<Ts...> {
  public:
   explicit St3215MoveToTurnsAction(St3215Servo *parent) : parent_(parent) {}
-  void set_turns(TemplatableValue<float> v) { turns_ = v; }
-  void set_speed(TemplatableValue<int> v) { speed_ = v; }
+  TEMPLATABLE_VALUE(float, turns)
+  TEMPLATABLE_VALUE(int, speed)
 
-  void play() override {
-    parent_->move_to_turns(turns_.value(), speed_.value());
+  void play(Ts... x) override {
+    parent_->move_to_turns(turns_.value(x...), speed_.value(x...));
   }
 
  protected:
   St3215Servo *parent_;
-  TemplatableValue<float> turns_;
-  TemplatableValue<int> speed_;
 };
 
-class St3215MoveToPercentAction : public Action<> {
+template<typename... Ts>
+class St3215MoveToPercentAction : public Action<Ts...> {
  public:
   explicit St3215MoveToPercentAction(St3215Servo *parent) : parent_(parent) {}
-  void set_percent(TemplatableValue<float> v) { percent_ = v; }
-  void set_speed(TemplatableValue<int> v) { speed_ = v; }
+  TEMPLATABLE_VALUE(float, percent)
+  TEMPLATABLE_VALUE(int, speed)
 
-  void play() override {
-    parent_->move_to_percent(percent_.value(), speed_.value());
+  void play(Ts... x) override {
+    parent_->move_to_percent(percent_.value(x...), speed_.value(x...));
   }
 
  protected:
   St3215Servo *parent_;
-  TemplatableValue<float> percent_;
-  TemplatableValue<int> speed_;
 };
 
 }  // namespace st3215_servo
 }  // namespace esphome
+
