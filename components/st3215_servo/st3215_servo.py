@@ -46,9 +46,9 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_PERCENT,
             icon="mdi:blinds",
             accuracy_decimals=0
-        ),
     }
-).extend(cv.polling_component_schema("500ms"))
+  )
+)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
