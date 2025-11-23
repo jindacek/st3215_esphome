@@ -1,5 +1,4 @@
 name: st3215_servo
-domain: st3215_servo
 version: 0.1.0
 
 build:
@@ -16,6 +15,8 @@ dependencies:
       - sensor
       - number
       - text_sensor
+    excludes:
+      - button
 
 codeowners:
   - "@jindacek"
