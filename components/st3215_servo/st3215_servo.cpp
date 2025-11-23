@@ -10,10 +10,10 @@ static const uint32_t RESPONSE_TIMEOUT_MS = 25;
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
 
-  // Register sensors so Sensor-related symbols get linked
-  if (angle_sensor_)   this->register_child(angle_sensor_);
-  if (turns_sensor_)   this->register_child(turns_sensor_);
-  if (percent_sensor_) this->register_child(percent_sensor_);
+  // Correct ESPHome method to register owned sensors
+  if (angle_sensor_)    this->register_sensor(angle_sensor_);
+  if (turns_sensor_)    this->register_sensor(turns_sensor_);
+  if (percent_sensor_)  this->register_sensor(percent_sensor_);
 }
 
 
