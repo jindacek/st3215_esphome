@@ -78,7 +78,7 @@ async def to_code(config):
         cg.add(var.set_percent_sensor(s))
 
 
-@cg.register_action(
+@automation.register_action(
     "st3215_servo.set_angle",
     St3215SetAngleAction,
     cv.Schema(
@@ -99,7 +99,7 @@ async def set_angle_to_code(config, action_id, template_arg, args):
     return var
 
 
-@cg.register_action(
+@automation.register_action(
     "st3215_servo.rotate",
     St3215RotateAction,
     cv.Schema(
@@ -119,7 +119,7 @@ async def rotate_to_code(config, action_id, template_arg, args):
     return var
 
 
-@cg.register_action(
+@automation.register_action(
     "st3215_servo.stop",
     St3215StopAction,
     cv.Schema({cv.Required(CONF_ID): cv.use_id(St3215Servo)}),
@@ -129,7 +129,7 @@ async def stop_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, parent)
 
 
-@cg.register_action(
+@automation.register_action(
     "st3215_servo.move_to_turns",
     St3215MoveToTurnsAction,
     cv.Schema(
@@ -150,7 +150,7 @@ async def move_to_turns_to_code(config, action_id, template_arg, args):
     return var
 
 
-@cg.register_action(
+@automation.register_action(
     "st3215_servo.move_to_percent",
     St3215MoveToPercentAction,
     cv.Schema(
