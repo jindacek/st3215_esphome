@@ -9,7 +9,13 @@ static const uint32_t RESPONSE_TIMEOUT_MS = 25;
 
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
+
+  // Register sensors so Sensor-related symbols get linked
+  if (angle_sensor_)   this->register_child(angle_sensor_);
+  if (turns_sensor_)   this->register_child(turns_sensor_);
+  if (percent_sensor_) this->register_child(percent_sensor_);
 }
+
 
 uint8_t St3215Servo::checksum_(uint8_t id, uint8_t len, uint8_t inst, const std::vector<uint8_t> &params) {
   uint16_t sum = id + len + inst;
