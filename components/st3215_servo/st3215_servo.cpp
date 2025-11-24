@@ -216,8 +216,24 @@ void St3215Servo::set_torque(bool on) {
 // stop
 // =====================================================================
 void St3215Servo::stop() {
-  // safe stop = torque off
-  set_torque(false);
+  // If torque is currently disabled, there's nothing to stop.
+  if (!torque_on_ || !have_last_)
+    return;
+
+  // Command the servo to hold its current position with the slowest speed so
+  // it gently brakes without re-issuing a long move in the wrong direction.
+  uint16_t pos = last_raw_pos_;
+  std::vector<uint8_t> data = {
+      (uint8_t)DEFAULT_ACC,
+      (uint8_t)(pos & 0xFF),
+      (uint8_t)((pos >> 8) & 0xFF),
+      0x00,
+      0x00,
+      0x01,  // speed LSB (1 = minimum permitted)
+      0x00,  // speed MSB
+  };
+
+  write_registers_(0x29, data);
 }
 
 // =====================================================================
@@ -225,6 +241,14 @@ void St3215Servo::stop() {
 // =====================================================================
 void St3215Servo::rotate(bool cw, int speed) {
   float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
+  move_relative(delta, speed);
+}
+
+// =====================================================================
+// move_to_turns (absolute position request)
+// =====================================================================
+void St3215Servo::move_to_turns(float turns, int speed) {
+  float delta = turns - turns_unwrapped_;
   move_relative(delta, speed);
 }
 
@@ -242,8 +266,13 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw = (int32_t)lroundf(target_turns * RAW_PER_TURN);
 
-  if (target_raw < 0) target_raw = 0;
-  if (target_raw > 65535) target_raw = 65535;
+  // The ST3215 position register is 16-bit (0..65535). Clamp so we never send
+  // a wrapped position that could command a large jump in the opposite
+  // direction when crossing the 16-turn boundary.
+  if (target_raw < 0)
+    target_raw = 0;
+  if (target_raw > 0xFFFF)
+    target_raw = 0xFFFF;
 
   uint16_t pos = (uint16_t)target_raw;
   uint16_t spd = (uint16_t)speed;
