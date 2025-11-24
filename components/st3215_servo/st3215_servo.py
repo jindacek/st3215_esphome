@@ -25,11 +25,12 @@ st3215_ns = cg.esphome_ns.namespace("st3215_servo")
 St3215Servo = st3215_ns.class_("St3215Servo", cg.PollingComponent, uart.UARTDevice)
 St3215TorqueSwitch = st3215_ns.class_("St3215TorqueSwitch", switch.Switch, cg.Component)
 
-St3215RotateAction = st3215_ns.class_("St3215RotateAction", cg.Action)
-St3215StopAction = st3215_ns.class_("St3215StopAction", cg.Action)
-St3215SetAngleAction = st3215_ns.class_("St3215SetAngleAction", cg.Action)
-St3215MoveRelativeAction = st3215_ns.class_("St3215MoveRelativeAction", cg.Action)
-St3215MoveToPercentAction = st3215_ns.class_("St3215MoveToPercentAction", cg.Action)
+# --- ESPHome 2025: actions must inherit from automation.Action, not cg.Action ---
+St3215RotateAction = st3215_ns.class_("St3215RotateAction", automation.Action)
+St3215StopAction = st3215_ns.class_("St3215StopAction", automation.Action)
+St3215SetAngleAction = st3215_ns.class_("St3215SetAngleAction", automation.Action)
+St3215MoveRelativeAction = st3215_ns.class_("St3215MoveRelativeAction", automation.Action)
+St3215MoveToPercentAction = st3215_ns.class_("St3215MoveToPercentAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
