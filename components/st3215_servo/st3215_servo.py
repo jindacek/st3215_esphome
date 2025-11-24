@@ -76,9 +76,9 @@ async def to_code(config):
         cg.add(var.set_percent_sensor(sens))
 
     if CONF_TORQUE_SWITCH in config:
-        sw = await switch.new_switch(config[CONF_TORQUE_SWITCH], St3215TorqueSwitch)
-        await cg.register_component(sw, config[CONF_TORQUE_SWITCH])
+        sw = await switch.new_switch(config[CONF_TORQUE_SWITCH])
         cg.add(var.set_torque_switch(sw))
+
 
 # -----------------------------
 # Actions
