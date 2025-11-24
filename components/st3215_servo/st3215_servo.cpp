@@ -193,12 +193,12 @@ void St3215Servo::set_torque(bool on) {
 }
 
 void St3215Servo::stop() {
-  // 1) STOPMOVE (servu to přijde, ale multiturn trajektorii to nezastaví)
-  send_packet_(servo_id_, 0x13, {});
+  // přečteme aktuální raw pozici
+  uint16_t pos = last_raw_pos_ % (uint16_t)RAW_PER_TURN;
+  int16_t turns = (int16_t)(last_raw_pos_ / (int32_t)RAW_PER_TURN);
 
-  // 2) HARD STOP pro multiturn režim:
-  //    Nastaví cílovou rychlost = 0 → okamžitě ukončí trajektorii.
-  write_registers_(0x2E, {0x00, 0x00});
+  // vyšleme multiturn příkaz na aktuální pozici se speed = 0
+  this->send_multiturn_pos_(DEFAULT_ACC, pos, turns, 0);
 }
 
 
