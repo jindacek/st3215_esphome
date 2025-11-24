@@ -114,8 +114,10 @@ void St3215Servo::write_registers_(uint8_t addr,
 // matches your PowerShell test.
 // params: [0x2A, acc, posL, posH, turnsL, turnsH, speedL, speedH]
 // =====================================================================
-static void send_multiturn_pos(St3215Servo *self, uint8_t acc,
-                               uint16_t pos, int16_t turns, uint16_t speed) {
+void St3215Servo::send_multiturn_pos_(uint8_t acc,
+                                      uint16_t pos,
+                                      int16_t turns,
+                                      uint16_t speed) {
   std::vector<uint8_t> params = {
       0x2A,
       acc,
@@ -126,8 +128,9 @@ static void send_multiturn_pos(St3215Servo *self, uint8_t acc,
       (uint8_t)(speed & 0xFF),
       (uint8_t)((speed >> 8) & 0xFF),
   };
-  self->send_packet_(self->servo_id_, 0x03, params);
+  this->send_packet_(this->servo_id_, 0x03, params);
 }
+
 
 // =====================================================================
 // Torque switch wiring
