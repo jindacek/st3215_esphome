@@ -193,9 +193,14 @@ void St3215Servo::set_torque(bool on) {
 }
 
 void St3215Servo::stop() {
-  // StopMove instruction
+  // 1) STOPMOVE (servu to přijde, ale multiturn trajektorii to nezastaví)
   send_packet_(servo_id_, 0x13, {});
+
+  // 2) HARD STOP pro multiturn režim:
+  //    Nastaví cílovou rychlost = 0 → okamžitě ukončí trajektorii.
+  write_registers_(0x2E, {0x00, 0x00});
 }
+
 
 void St3215Servo::rotate(bool cw, int speed) {
   float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
