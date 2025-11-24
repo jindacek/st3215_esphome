@@ -193,26 +193,14 @@ void St3215Servo::set_torque(bool on) {
 }
 
 void St3215Servo::stop() {
-  // 1) vypnout torque (servo okamžitě přestane držet pozici i jet)
+  // Multiturn režim ignoruje StopMove, ale torque OFF zastaví motor hned
+  // a hlavně nic nequeueuje.
   set_torque(false);
 
-  // 2) uložit poslední polohu jako novou „nulovou trajektorii“
-  // aby při zapnutí torque servo neuletělo
-  uint16_t pos = last_raw_pos_ % (uint16_t)RAW_PER_TURN;
-  int16_t turns = (int16_t)(last_raw_pos_ / (int32_t)RAW_PER_TURN);
-
-  // 3) nastavit cílovou pozici = aktuální, ale torque OFF => servo se nehýbe
-  //   nejede žádná trajektorie (posíláme jen aby ESPHome interně bylo v souladu)
-  send_packet_(servo_id_, 0x03, {
-      0x2A,               // multiturn pos reg
-      DEFAULT_ACC,
-      (uint8_t)(pos & 0xFF),
-      (uint8_t)(pos >> 8),
-      (uint8_t)(turns & 0xFF),
-      (uint8_t)(turns >> 8),
-      0x00, 0x00          // speed = 0
-  });
+  // Volitelně: můžeš nechat i StopMove, neublíží:
+  // send_packet_(servo_id_, 0x13, {});
 }
+
 
 
 
