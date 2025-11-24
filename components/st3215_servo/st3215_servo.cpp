@@ -202,10 +202,9 @@ void St3215Servo::update() {
 void St3215Servo::set_torque(bool on) {
   torque_on_ = on;
   write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
-
-  if (torque_switch_)
-    torque_switch_->publish_state(on);
+  if (torque_switch_) torque_switch_->publish_state(on);
 }
+
 
 // =====================================================================
 // stop: true servo stop command (0x13), keep torque
