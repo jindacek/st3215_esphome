@@ -81,7 +81,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 };
 
 // -----------------------------
-// Automation actions (ESPHome 2025 non-templated)
+// Automation actions
 // -----------------------------
 class St3215RotateAction : public Action<> {
  public:
