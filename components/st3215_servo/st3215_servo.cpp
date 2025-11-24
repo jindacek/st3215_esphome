@@ -18,21 +18,17 @@ void St3215TorqueSwitch::write_state(bool state) {
 }
 
 // =====================================================================
-// Helper: checksum for STS packets
-// Frame: FF FF ID LEN INST PARAMS... CHK
-// checksum = ~(sum from ID through last param) & 0xFF
+// checksum
 // =====================================================================
 uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
   uint16_t sum = 0;
-  // sum from ID (index 2) to last byte before checksum
-  for (size_t i = 2; i < len; i++) {
-    sum += data[i];
-  }
+  for (size_t i = 2; i < len; i++) sum += data[i];
   return (~sum) & 0xFF;
 }
 
 // =====================================================================
-// Send raw packet
+// Send raw packet: FF FF ID LEN INST PARAMS... CHK
+// LEN = params + 2 (INST + CHK)
 // =====================================================================
 void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
                               const std::vector<uint8_t> &params) {
@@ -42,21 +38,18 @@ void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
   p.push_back(0xFF);
   p.push_back(0xFF);
   p.push_back(id);
-  p.push_back(params.size() + 2);  // LEN includes cmd + checksum
+  p.push_back(params.size() + 2);
   p.push_back(cmd);
-
-  for (auto b : params)
-    p.push_back(b);
-
+  for (auto b : params) p.push_back(b);
   p.push_back(checksum_(p.data(), p.size()));
+
   this->write_array(p);
   this->flush();
 }
 
 // =====================================================================
-// Read registers
-// Read inst = 0x02, params: [addr, len]
-// Response: FF FF ID LEN ERR DATA... CHK
+// Read registers (0x02)
+// params: [addr, len]
 // =====================================================================
 bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
                                   std::vector<uint8_t> &out) {
@@ -67,38 +60,24 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
   buf.reserve(8 + len);
 
   while (millis() - start < 50) {
-    while (this->available()) {
-      buf.push_back(this->read());
-    }
+    while (this->available()) buf.push_back(this->read());
 
     if (buf.size() >= 6) {
-      // seek header
       size_t i = 0;
-      while (i + 1 < buf.size() &&
-             !(buf[i] == 0xFF && buf[i + 1] == 0xFF)) {
-        i++;
-      }
-      if (i > 0)
-        buf.erase(buf.begin(), buf.begin() + i);
+      while (i + 1 < buf.size() && !(buf[i] == 0xFF && buf[i + 1] == 0xFF)) i++;
+      if (i > 0) buf.erase(buf.begin(), buf.begin() + i);
 
-      if (buf.size() < 4)
-        continue;
+      if (buf.size() < 4) continue;
 
       uint8_t rlen = buf[3];
-      if (buf.size() < (size_t)(rlen + 4))
-        continue;  // not full yet
+      if (buf.size() < (size_t)(rlen + 4)) continue;
 
-      // verify checksum
       uint8_t chk = buf[rlen + 3];
       uint8_t calc = checksum_(buf.data(), rlen + 3);
       if (chk != calc) {
         ESP_LOGW(TAG, "Bad checksum resp (got %02X calc %02X)", chk, calc);
         buf.clear();
         continue;
-      }
-
-      if (buf[2] != id) {
-        ESP_LOGW(TAG, "Resp from other id %u", buf[2]);
       }
 
       uint8_t err = buf[4];
@@ -116,16 +95,38 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 }
 
 // =====================================================================
-// Write registers helper (STS requires [addr, data_len, data...])
+// Normal WRITE registers helper for classic regs
+// STS wants: [addr, data_len, data...]
+// used for torque etc.
 // =====================================================================
 void St3215Servo::write_registers_(uint8_t addr,
                                    const std::vector<uint8_t> &data) {
   std::vector<uint8_t> params;
   params.reserve(2 + data.size());
   params.push_back(addr);
-  params.push_back((uint8_t)data.size());  // IMPORTANT length byte
+  params.push_back((uint8_t)data.size());
   params.insert(params.end(), data.begin(), data.end());
   send_packet_(servo_id_, 0x03, params);
+}
+
+// =====================================================================
+// SPECIAL multiturn WritePos to 0x2A WITHOUT data_len byte
+// matches your PowerShell test.
+// params: [0x2A, acc, posL, posH, turnsL, turnsH, speedL, speedH]
+// =====================================================================
+static void send_multiturn_pos(St3215Servo *self, uint8_t acc,
+                               uint16_t pos, int16_t turns, uint16_t speed) {
+  std::vector<uint8_t> params = {
+      0x2A,
+      acc,
+      (uint8_t)(pos & 0xFF),
+      (uint8_t)((pos >> 8) & 0xFF),
+      (uint8_t)(turns & 0xFF),
+      (uint8_t)((turns >> 8) & 0xFF),
+      (uint8_t)(speed & 0xFF),
+      (uint8_t)((speed >> 8) & 0xFF),
+  };
+  self->send_packet_(self->servo_id_, 0x03, params);
 }
 
 // =====================================================================
@@ -139,19 +140,11 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
   }
 }
 
-// =====================================================================
-// setup
-// =====================================================================
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
-
-  // Make sure torque is enabled at boot
   set_torque(true);
 }
 
-// =====================================================================
-// dump_config
-// =====================================================================
 void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "ST3215 Servo:");
   ESP_LOGCONFIG(TAG, "  ID: %u", servo_id_);
@@ -159,13 +152,9 @@ void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "  Turns full open: %.3f turns", turns_full_open_);
 }
 
-// =====================================================================
-// update (multiturn / unwrapped turns) from present position at 0x38
-// =====================================================================
 void St3215Servo::update() {
   std::vector<uint8_t> data;
-  if (!read_registers_(servo_id_, 0x38, 2, data))
-    return;
+  if (!read_registers_(servo_id_, 0x38, 2, data)) return;
 
   uint16_t raw = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
 
@@ -174,24 +163,17 @@ void St3215Servo::update() {
 
   if (have_last_) {
     int16_t diff = (int16_t)raw - (int16_t)last_raw_pos_;
-    if (diff > 2048)
-      turns_unwrapped_ -= 1.0f;
-    else if (diff < -2048)
-      turns_unwrapped_ += 1.0f;
-
+    if (diff > 2048) turns_unwrapped_ -= 1.0f;
+    else if (diff < -2048) turns_unwrapped_ += 1.0f;
     turns_unwrapped_ += diff / RAW_PER_TURN;
   } else {
     turns_unwrapped_ = turns_now;
     have_last_ = true;
   }
-
   last_raw_pos_ = raw;
 
-  if (angle_sensor_)
-    angle_sensor_->publish_state(angle_deg);
-
-  if (turns_sensor_)
-    turns_sensor_->publish_state(turns_unwrapped_);
+  if (angle_sensor_) angle_sensor_->publish_state(angle_deg);
+  if (turns_sensor_) turns_sensor_->publish_state(turns_unwrapped_);
 
   if (percent_sensor_ && turns_full_open_ > 0.0f) {
     float pct = (turns_unwrapped_ / turns_full_open_) * 100.0f;
@@ -201,94 +183,48 @@ void St3215Servo::update() {
   }
 }
 
-// =====================================================================
-// set_torque (addr 0x28)
-// =====================================================================
 void St3215Servo::set_torque(bool on) {
   torque_on_ = on;
   write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
-
-  if (torque_switch_)
-    torque_switch_->publish_state(on);
+  if (torque_switch_) torque_switch_->publish_state(on);
 }
 
-// =====================================================================
-// stop
-// =====================================================================
 void St3215Servo::stop() {
-  // safe stop = torque off
-  set_torque(false);
+  // StopMove instruction
+  send_packet_(servo_id_, 0x13, {});
 }
 
-// =====================================================================
-// rotate (relative +/- step turns)
-// =====================================================================
 void St3215Servo::rotate(bool cw, int speed) {
   float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
   move_relative(delta, speed);
 }
 
-// =====================================================================
-// move_to_turns (absolute position request)
-// =====================================================================
-void St3215Servo::move_to_turns(float turns, int speed) {
-  float delta = turns - turns_unwrapped_;
-  move_relative(delta, speed);
-}
-
-// =====================================================================
-// move_relative using STS WritePosEx (start at 0x29, 7 bytes)
-// data: [acc, posL, posH, 0, 0, speedL, speedH]
-// =====================================================================
 void St3215Servo::move_relative(float turns_delta, int speed) {
   if (speed < 0) speed = 0;
   if (speed > 3400) speed = 3400;
-
-  if (!torque_on_)
-    set_torque(true);
+  if (!torque_on_) set_torque(true);
 
   float target_turns = turns_unwrapped_ + turns_delta;
-  int32_t target_raw = (int32_t)lroundf(target_turns * RAW_PER_TURN);
+  int32_t target_raw_total = (int32_t)lroundf(target_turns * RAW_PER_TURN);
 
-  // The ST3215 position register is 16-bit. Wrap instead of clamp so we can
-  // continue commanding motion once we cross the 16-turn boundary in either
-  // direction.
-  target_raw %= 65536;
-  if (target_raw < 0)
-    target_raw += 65536;
+  if (target_raw_total < 0) target_raw_total = 0;
+  if (target_raw_total > 0x7FFFFFFF) target_raw_total = 0x7FFFFFFF;
 
-  uint16_t pos = (uint16_t)target_raw;
+  uint16_t pos = (uint16_t)(target_raw_total % (int32_t)RAW_PER_TURN);   // 0..4095
+  int16_t turns_cnt = (int16_t)(target_raw_total / (int32_t)RAW_PER_TURN); // 0..14 u tebe
   uint16_t spd = (uint16_t)speed;
 
-  std::vector<uint8_t> data = {
-      (uint8_t)DEFAULT_ACC,
-      (uint8_t)(pos & 0xFF),
-      (uint8_t)((pos >> 8) & 0xFF),
-      0x00,
-      0x00,
-      (uint8_t)(spd & 0xFF),
-      (uint8_t)((spd >> 8) & 0xFF),
-  };
-
-  write_registers_(0x29, data);
+  send_multiturn_pos(this, (uint8_t)DEFAULT_ACC, pos, turns_cnt, spd);
 }
 
-// =====================================================================
-// set_angle
-// =====================================================================
 void St3215Servo::set_angle(float angle_deg, int speed) {
   float turns_target = angle_deg / 360.0f;
   float delta = turns_target - turns_unwrapped_;
   move_relative(delta, speed);
 }
 
-// =====================================================================
-// move_to_percent
-// =====================================================================
 void St3215Servo::move_to_percent(float percent, int speed) {
-  if (turns_full_open_ <= 0.0f)
-    return;
-
+  if (turns_full_open_ <= 0.0f) return;
   float turns_target = (percent / 100.0f) * turns_full_open_;
   float delta = turns_target - turns_unwrapped_;
   move_relative(delta, speed);
