@@ -118,12 +118,12 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 void St3215Servo::write_registers_(uint8_t addr,
                                    const std::vector<uint8_t> &data) {
   std::vector<uint8_t> params;
-  params.reserve(1 + data.size());
+  params.reserve(2 + data.size());
   params.push_back(addr);
+  params.push_back((uint8_t)data.size());  // IMPORTANT length byte
   params.insert(params.end(), data.begin(), data.end());
   send_packet_(servo_id_, 0x03, params);
 }
-
 
 // =====================================================================
 // Torque switch wiring
@@ -202,9 +202,10 @@ void St3215Servo::update() {
 void St3215Servo::set_torque(bool on) {
   torque_on_ = on;
   write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
-  if (torque_switch_) torque_switch_->publish_state(on);
-}
 
+  if (torque_switch_)
+    torque_switch_->publish_state(on);
+}
 
 // =====================================================================
 // stop: true servo stop command (0x13), keep torque
@@ -223,9 +224,8 @@ void St3215Servo::rotate(bool cw, int speed) {
 }
 
 // =====================================================================
-// move_relative using STS WritePosEx multiturn-ish (start at 0x29, 7 bytes)
-// data: [acc, posL, posH, 0, 0, speedL, speedH]
-// NOTE: ST3215 expects absolute 16-bit position at 0x29, NOT split turns.
+// move_relative using STS multiturn WritePos (start at 0x2A, 7 bytes)
+// data: [acc, posL, posH, turnsL, turnsH, speedL, speedH]
 // =====================================================================
 void St3215Servo::move_relative(float turns_delta, int speed) {
   if (speed < 0) speed = 0;
@@ -233,27 +233,29 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   if (!torque_on_) set_torque(true);
 
   float target_turns = turns_unwrapped_ + turns_delta;
-  int32_t target_raw = (int32_t) lroundf(target_turns * RAW_PER_TURN);
+  int32_t target_raw_total = (int32_t)lroundf(target_turns * RAW_PER_TURN);
 
-  // limit na cca 16 otáček (0..65535)
-  if (target_raw < 0) target_raw = 0;
-  if (target_raw > 65535) target_raw = 65535;
+  if (target_raw_total < 0) target_raw_total = 0;
+  if (target_raw_total > 0x7FFFFFFF) target_raw_total = 0x7FFFFFFF;
 
-  uint16_t pos = (uint16_t) target_raw;
-  uint16_t spd = (uint16_t) speed;
+  uint16_t pos = (uint16_t)(target_raw_total % (int32_t)RAW_PER_TURN);
+  int32_t turns_cnt = target_raw_total / (int32_t)RAW_PER_TURN;
+  uint16_t turns_u16 = (uint16_t) turns_cnt;
+
+  uint16_t spd = (uint16_t)speed;
 
   std::vector<uint8_t> data = {
+      (uint8_t)DEFAULT_ACC,
       (uint8_t)(pos & 0xFF),
       (uint8_t)((pos >> 8) & 0xFF),
-      0x00, 0x00,                 // time = 0
+      (uint8_t)(turns_u16 & 0xFF),
+      (uint8_t)((turns_u16 >> 8) & 0xFF),
       (uint8_t)(spd & 0xFF),
       (uint8_t)((spd >> 8) & 0xFF),
   };
 
   write_registers_(0x2A, data);
 }
-
-
 
 void St3215Servo::set_angle(float angle_deg, int speed) {
   float turns_target = angle_deg / 360.0f;
