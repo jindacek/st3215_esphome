@@ -60,6 +60,8 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
   void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
+  void send_multiturn_pos_(uint8_t acc, uint16_t pos, int16_t turns, uint16_t speed);
+
 
   uint8_t servo_id_{1};
   float max_angle_{240.0f};
