@@ -11,7 +11,7 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw_total = (int32_t) lroundf(target_turns * RAW_PER_TURN);
 
-  // ST3215 WritePosEx uses uint16 absolute position
+  // ST3215 WritePosEx uses 16bit position only
   if (target_raw_total < 0) target_raw_total = 0;
   if (target_raw_total > 65535) target_raw_total = 65535;
 
@@ -22,12 +22,11 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
       (uint8_t)DEFAULT_ACC,
       (uint8_t)(pos & 0xFF),
       (uint8_t)((pos >> 8) & 0xFF),
-      0x00,  // required padding (per working V5 packets)
-      0x00,  // required padding
+      0x00,
+      0x00,
       (uint8_t)(spd & 0xFF),
       (uint8_t)((spd >> 8) & 0xFF),
   };
 
-  // IMPORTANT: start address 0x29 for WritePosEx on ST3215
   write_registers_(0x29, data);
 }
