@@ -229,6 +229,14 @@ void St3215Servo::rotate(bool cw, int speed) {
 }
 
 // =====================================================================
+// move_to_turns (absolute position request)
+// =====================================================================
+void St3215Servo::move_to_turns(float turns, int speed) {
+  float delta = turns - turns_unwrapped_;
+  move_relative(delta, speed);
+}
+
+// =====================================================================
 // move_relative using STS WritePosEx (start at 0x29, 7 bytes)
 // data: [acc, posL, posH, 0, 0, speedL, speedH]
 // =====================================================================
@@ -242,8 +250,12 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw = (int32_t)lroundf(target_turns * RAW_PER_TURN);
 
-  if (target_raw < 0) target_raw = 0;
-  if (target_raw > 65535) target_raw = 65535;
+  // The ST3215 position register is 16-bit. Wrap instead of clamp so we can
+  // continue commanding motion once we cross the 16-turn boundary in either
+  // direction.
+  target_raw %= 65536;
+  if (target_raw < 0)
+    target_raw += 65536;
 
   uint16_t pos = (uint16_t)target_raw;
   uint16_t spd = (uint16_t)speed;
