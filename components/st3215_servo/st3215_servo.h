@@ -56,6 +56,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
  protected:
   // protocol helpers
   uint8_t checksum_(const uint8_t *data, size_t len);
+  void send_multiturn_pos_(uint8_t acc, uint16_t pos, int16_t turns, uint16_t speed);
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
   void write_registers_(uint8_t addr, const std::vector<uint8_t> &data);
