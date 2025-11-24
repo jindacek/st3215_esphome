@@ -229,6 +229,14 @@ void St3215Servo::rotate(bool cw, int speed) {
 }
 
 // =====================================================================
+// move_to_turns (absolute position request)
+// =====================================================================
+void St3215Servo::move_to_turns(float turns, int speed) {
+  float delta = turns - turns_unwrapped_;
+  move_relative(delta, speed);
+}
+
+// =====================================================================
 // move_relative using STS WritePosEx (start at 0x29, 7 bytes)
 // data: [acc, posL, posH, 0, 0, speedL, speedH]
 // =====================================================================
