@@ -220,8 +220,8 @@ void St3215Servo::stop() {
   if (!torque_on_ || !have_last_)
     return;
 
-  // Command the servo to hold its current position with the slowest speed so
-  // it gently brakes without re-issuing a long move in the wrong direction.
+  // Command the servo to hold its current position with zero speed so it
+  // actively brakes without trying to move away from where it is now.
   uint16_t pos = last_raw_pos_;
   std::vector<uint8_t> data = {
       (uint8_t)DEFAULT_ACC,
@@ -229,7 +229,7 @@ void St3215Servo::stop() {
       (uint8_t)((pos >> 8) & 0xFF),
       0x00,
       0x00,
-      0x01,  // speed LSB (1 = minimum permitted)
+      0x00,  // speed LSB
       0x00,  // speed MSB
   };
 
@@ -266,13 +266,12 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw = (int32_t)lroundf(target_turns * RAW_PER_TURN);
 
-  // The ST3215 position register is 16-bit (0..65535). Clamp so we never send
-  // a wrapped position that could command a large jump in the opposite
-  // direction when crossing the 16-turn boundary.
+  // The ST3215 position register is 16-bit. Wrap instead of clamp so we can
+  // continue commanding motion once we cross the 16-turn boundary in either
+  // direction.
+  target_raw %= 65536;
   if (target_raw < 0)
-    target_raw = 0;
-  if (target_raw > 0xFFFF)
-    target_raw = 0xFFFF;
+    target_raw += 65536;
 
   uint16_t pos = (uint16_t)target_raw;
   uint16_t spd = (uint16_t)speed;
