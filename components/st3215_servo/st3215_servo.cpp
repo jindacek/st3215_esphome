@@ -24,7 +24,6 @@ void St3215TorqueSwitch::write_state(bool state) {
 // =====================================================================
 uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
   uint16_t sum = 0;
-  // sum from ID (index 2) to last byte before checksum
   for (size_t i = 2; i < len; i++) {
     sum += data[i];
   }
@@ -72,7 +71,6 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
     }
 
     if (buf.size() >= 6) {
-      // seek header
       size_t i = 0;
       while (i + 1 < buf.size() &&
              !(buf[i] == 0xFF && buf[i + 1] == 0xFF)) {
@@ -86,9 +84,8 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 
       uint8_t rlen = buf[3];
       if (buf.size() < (size_t)(rlen + 4))
-        continue;  // not full yet
+        continue;
 
-      // verify checksum
       uint8_t chk = buf[rlen + 3];
       uint8_t calc = checksum_(buf.data(), rlen + 3);
       if (chk != calc) {
@@ -144,8 +141,7 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
 // =====================================================================
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
-
-  // Make sure torque is enabled at boot
+  // ensure torque enabled at boot
   set_torque(true);
 }
 
@@ -160,7 +156,7 @@ void St3215Servo::dump_config() {
 }
 
 // =====================================================================
-// update (multiturn / unwrapped turns) from present position at 0x38
+// update (multiturn / unwrapped turns)
 // =====================================================================
 void St3215Servo::update() {
   std::vector<uint8_t> data;
@@ -189,7 +185,6 @@ void St3215Servo::update() {
 
   if (angle_sensor_)
     angle_sensor_->publish_state(angle_deg);
-
   if (turns_sensor_)
     turns_sensor_->publish_state(turns_unwrapped_);
 
@@ -216,12 +211,11 @@ void St3215Servo::set_torque(bool on) {
 // stop
 // =====================================================================
 void St3215Servo::stop() {
-  // safe stop = torque off
   set_torque(false);
 }
 
 // =====================================================================
-// rotate (relative +/- step turns)
+// rotate (relative by step turns)
 // =====================================================================
 void St3215Servo::rotate(bool cw, int speed) {
   float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
@@ -235,9 +229,7 @@ void St3215Servo::rotate(bool cw, int speed) {
 void St3215Servo::move_relative(float turns_delta, int speed) {
   if (speed < 0) speed = 0;
   if (speed > 3400) speed = 3400;
-
-  if (!torque_on_)
-    set_torque(true);
+  if (!torque_on_) set_torque(true);
 
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw = (int32_t)lroundf(target_turns * RAW_PER_TURN);
@@ -261,22 +253,14 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   write_registers_(0x29, data);
 }
 
-// =====================================================================
-// set_angle
-// =====================================================================
 void St3215Servo::set_angle(float angle_deg, int speed) {
   float turns_target = angle_deg / 360.0f;
   float delta = turns_target - turns_unwrapped_;
   move_relative(delta, speed);
 }
 
-// =====================================================================
-// move_to_percent
-// =====================================================================
 void St3215Servo::move_to_percent(float percent, int speed) {
-  if (turns_full_open_ <= 0.0f)
-    return;
-
+  if (turns_full_open_ <= 0.0f) return;
   float turns_target = (percent / 100.0f) * turns_full_open_;
   float delta = turns_target - turns_unwrapped_;
   move_relative(delta, speed);
