@@ -216,8 +216,25 @@ void St3215Servo::set_torque(bool on) {
 // stop
 // =====================================================================
 void St3215Servo::stop() {
-  // safe stop = torque off
-  set_torque(false);
+  // If torque is currently disabled or we don't have a valid position yet,
+  // there's nothing to hold.
+  if (!torque_on_ || !have_last_)
+    return;
+
+  // Command the servo to hold its current position with zero speed so it
+  // actively brakes without trying to move away from where it is now.
+  uint16_t pos = last_raw_pos_;
+  std::vector<uint8_t> data = {
+      (uint8_t)DEFAULT_ACC,
+      (uint8_t)(pos & 0xFF),
+      (uint8_t)((pos >> 8) & 0xFF),
+      0x00,
+      0x00,
+      0x00,  // speed LSB
+      0x00,  // speed MSB
+  };
+
+  write_registers_(0x29, data);
 }
 
 // =====================================================================
