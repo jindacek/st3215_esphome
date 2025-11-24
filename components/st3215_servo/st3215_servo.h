@@ -48,6 +48,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void rotate(bool cw, int speed);
   void stop();
   void move_relative(float turns_delta, int speed);
+  void move_to_turns(float turns, int speed);
   void set_angle(float angle_deg, int speed);
   void move_to_percent(float percent, int speed);
   void set_torque(bool on);
@@ -76,7 +77,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   bool torque_on_{true};
 
   static constexpr float RAW_PER_TURN = 4096.0f;
-  static constexpr float CW_CCW_STEP_TURNS = 10.5f;
+  static constexpr float CW_CCW_STEP_TURNS = 1.0f;
   static constexpr int DEFAULT_ACC = 50;
 };
 
@@ -124,6 +125,22 @@ class St3215MoveRelativeAction : public Action<> {
   void set_turns(float t) { turns_ = t; }
   void set_speed(int s) { speed_ = s; }
   void play() override { if (parent_) parent_->move_relative(turns_, speed_); }
+
+ protected:
+  St3215Servo *parent_{nullptr};
+  float turns_{0};
+  int speed_{600};
+};
+
+class St3215MoveToTurnsAction : public Action<> {
+ public:
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_turns(float t) { turns_ = t; }
+  void set_speed(int s) { speed_ = s; }
+  void play() override {
+    if (parent_)
+      parent_->move_to_turns(turns_, speed_);
+  }
 
  protected:
   St3215Servo *parent_{nullptr};

@@ -216,8 +216,23 @@ void St3215Servo::set_torque(bool on) {
 // stop
 // =====================================================================
 void St3215Servo::stop() {
-  // safe stop = torque off
-  set_torque(false);
+  // Command the servo to hold its current position with zero speed so it
+  // actively brakes instead of coasting when torque is disabled.
+  if (!torque_on_)
+    set_torque(true);
+
+  uint16_t pos = last_raw_pos_;
+  std::vector<uint8_t> data = {
+      (uint8_t)DEFAULT_ACC,
+      (uint8_t)(pos & 0xFF),
+      (uint8_t)((pos >> 8) & 0xFF),
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+  };
+
+  write_registers_(0x29, data);
 }
 
 // =====================================================================
@@ -225,6 +240,14 @@ void St3215Servo::stop() {
 // =====================================================================
 void St3215Servo::rotate(bool cw, int speed) {
   float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
+  move_relative(delta, speed);
+}
+
+// =====================================================================
+// move_to_turns (absolute position request)
+// =====================================================================
+void St3215Servo::move_to_turns(float turns, int speed) {
+  float delta = turns - turns_unwrapped_;
   move_relative(delta, speed);
 }
 
@@ -241,9 +264,10 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
 
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw = (int32_t)lroundf(target_turns * RAW_PER_TURN);
-
-  if (target_raw < 0) target_raw = 0;
-  if (target_raw > 65535) target_raw = 65535;
+  if (target_raw < 0)
+    target_raw = 0;
+  if (target_raw > 0xFFFF)
+    target_raw = 0xFFFF;
 
   uint16_t pos = (uint16_t)target_raw;
   uint16_t spd = (uint16_t)speed;
