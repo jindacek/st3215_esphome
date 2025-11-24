@@ -217,7 +217,7 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   int16_t turns_cnt = (int16_t)(target_raw_total / (int32_t)RAW_PER_TURN); // 0..14 u tebe
   uint16_t spd = (uint16_t)speed;
 
-  send_multiturn_pos(this, (uint8_t)DEFAULT_ACC, pos, turns_cnt, spd);
+  this->send_multiturn_pos_(DEFAULT_ACC, pos, turns_cnt, spd);
 }
 
 void St3215Servo::set_angle(float angle_deg, int speed) {
