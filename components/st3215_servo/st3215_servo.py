@@ -44,7 +44,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ANGLE): sensor.sensor_schema(unit_of_measurement="°", accuracy_decimals=0),
             cv.Optional(CONF_TURNS): sensor.sensor_schema(unit_of_measurement="turns", accuracy_decimals=3),
             cv.Optional(CONF_PERCENT): sensor.sensor_schema(unit_of_measurement="%", accuracy_decimals=1),
-            cv.Optional(CONF_TORQUE_SWITCH): switch.switch_schema(),
+            cv.Optional(CONF_TORQUE_SWITCH): switch.switch_schema(St3215TorqueSwitch),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
