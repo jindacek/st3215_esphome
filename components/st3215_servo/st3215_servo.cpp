@@ -216,7 +216,8 @@ void St3215Servo::set_torque(bool on) {
 // stop
 // =====================================================================
 void St3215Servo::stop() {
-  // If torque is currently disabled, there's nothing to stop.
+  // If torque is currently disabled or we don't have a valid position yet,
+  // there's nothing to hold.
   if (!torque_on_ || !have_last_)
     return;
 
