@@ -25,7 +25,7 @@ st3215_ns = cg.esphome_ns.namespace("st3215_servo")
 St3215Servo = st3215_ns.class_("St3215Servo", cg.PollingComponent, uart.UARTDevice)
 St3215TorqueSwitch = st3215_ns.class_("St3215TorqueSwitch", switch.Switch, cg.Component)
 
-# --- ESPHome 2025: actions must inherit from automation.Action, not cg.Action ---
+# ESPHome 2025+ actions
 St3215RotateAction = st3215_ns.class_("St3215RotateAction", automation.Action)
 St3215StopAction = st3215_ns.class_("St3215StopAction", automation.Action)
 St3215SetAngleAction = st3215_ns.class_("St3215SetAngleAction", automation.Action)
@@ -44,7 +44,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ANGLE): sensor.sensor_schema(unit_of_measurement="°", accuracy_decimals=0),
             cv.Optional(CONF_TURNS): sensor.sensor_schema(unit_of_measurement="turns", accuracy_decimals=3),
             cv.Optional(CONF_PERCENT): sensor.sensor_schema(unit_of_measurement="%", accuracy_decimals=1),
-            cv.Optional(CONF_TORQUE_SWITCH): switch.switch_schema(
+            cv.Optional("torque_switch"): switch.switch_schema(
                 class_=St3215TorqueSwitch
             ),
         }
@@ -54,7 +54,6 @@ CONFIG_SCHEMA = (
 )
 
 async def to_code(config):
-    uart_comp = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -75,10 +74,9 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PERCENT])
         cg.add(var.set_percent_sensor(sens))
 
-    if CONF_TORQUE_SWITCH in config:
-        sw = await switch.new_switch(config[CONF_TORQUE_SWITCH])
+    if "torque_switch" in config:
+        sw = await switch.new_switch(config["torque_switch"])
         cg.add(var.set_torque_switch(sw))
-
 
 # -----------------------------
 # Actions
