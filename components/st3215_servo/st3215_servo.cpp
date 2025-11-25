@@ -169,29 +169,31 @@ void St3215Servo::dump_config() {
 }
 
 void St3215Servo::update() {
+  // 1) RAW POSITION (0x38)
   std::vector<uint8_t> data;
-  if (!read_registers_(servo_id_, 0x38, 2, data)) return;
+  if (!read_registers_(servo_id_, 0x38, 2, data))
+    return;
 
   uint16_t raw = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
 
-  float angle_deg = (raw / RAW_PER_TURN) * 360.0f;
-  float turns_now = raw / RAW_PER_TURN;
-
-  if (have_last_) {
-    int16_t diff = (int16_t)raw - (int16_t)last_raw_pos_;
-    if (diff > 2048)      // přechod 4095 → 0 (přetočení dopředu)
-      turns_unwrapped_ -= 1.0f;
-    else if (diff < -2048) // přechod 0 → 4095 (zpět)
-      turns_unwrapped_ += 1.0f;
-    turns_unwrapped_ += diff / RAW_PER_TURN;
-  } else {
-    turns_unwrapped_ = turns_now;
-    have_last_ = true;
+  // 2) WHOLE TURNS (0x3A)
+  int16_t whole_turns = 0;
+  std::vector<uint8_t> tdata;
+  if (read_registers_(servo_id_, 0x3A, 2, tdata)) {
+    whole_turns = (int16_t)(tdata[0] | (tdata[1] << 8));
   }
-  last_raw_pos_ = raw;
 
-  if (angle_sensor_) angle_sensor_->publish_state(angle_deg);
-  if (turns_sensor_) turns_sensor_->publish_state(turns_unwrapped_);
+  // 3) KOMBINACE OBĚ DVOU HODNOT
+  turns_unwrapped_ = whole_turns + (raw / RAW_PER_TURN);
+
+  // 4) Úhel pro senzor
+  float angle_deg = (raw / RAW_PER_TURN) * 360.0f;
+
+  // 5) Publikace hodnot
+  if (angle_sensor_)
+    angle_sensor_->publish_state(angle_deg);
+  if (turns_sensor_)
+    turns_sensor_->publish_state(turns_unwrapped_);
 
   if (percent_sensor_ && turns_full_open_ > 0.0f) {
     float pct = (turns_unwrapped_ / turns_full_open_) * 100.0f;
@@ -200,6 +202,7 @@ void St3215Servo::update() {
     percent_sensor_->publish_state(pct);
   }
 }
+
 
 void St3215Servo::set_torque(bool on) {
   torque_on_ = on;
