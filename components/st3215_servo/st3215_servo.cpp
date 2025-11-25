@@ -225,11 +225,14 @@ void St3215Servo::update() {
 
 
 void St3215Servo::set_torque(bool on) {
+  if (on) {
+    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE});
+  } else {
+    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x00,0xCF});
+  }
   torque_on_ = on;
-  write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
-  if (torque_switch_) torque_switch_->publish_state(on);
-  if (torque_sensor_) torque_sensor_->publish_state(on ? 1.0f : 0.0f);
 }
+
 
 void St3215Servo::stop() {
   // Správný STOP podle tvých testů:
