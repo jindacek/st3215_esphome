@@ -241,6 +241,9 @@ void St3215Servo::set_motor_mode(bool motor) {
   }
 }
 
+void St3215Servo::move_plus_one_turn() {
+  send_raw({0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x01,0x00,0x2C,0x01,0x67});
+}
 void St3215Servo::stop() {
   // Správný STOP podle tvých testů:
   //  - posíláme jen torque OFF (0x28 = 0)
