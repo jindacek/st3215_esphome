@@ -7,6 +7,14 @@ namespace st3215_servo {
 
 static const char *const TAG = "st3215_servo";
 
+
+
+void St3215Servo::send_raw(const std::vector<uint8_t>& data) {
+    this->write_array(data);
+    this->flush();
+}
+
+
 // =====================================================================
 // Torque Switch
 // =====================================================================
