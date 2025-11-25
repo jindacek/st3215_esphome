@@ -79,12 +79,12 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
   static constexpr float RAW_PER_TURN = 4096.0f;
   static constexpr float CW_CCW_STEP_TURNS = 1.0f;
-  static constexpr int DEFAULT_ACC = 50;
+  static constexpr int DEFAULT_ACC = 0x32;  // 50, podle tvého testovacího rámce
 };
 
-// -----------------------------
+//
 // Automation actions
-// -----------------------------
+//
 class St3215RotateAction : public Action<> {
  public:
   void set_parent(St3215Servo *p) { parent_ = p; }
