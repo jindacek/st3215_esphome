@@ -102,12 +102,12 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 void St3215Servo::write_registers_(uint8_t addr,
                                    const std::vector<uint8_t> &data) {
   std::vector<uint8_t> params;
-  params.reserve(2 + data.size());
+  params.reserve(1 + data.size());
   params.push_back(addr);
-  params.push_back((uint8_t)data.size());
-  params.insert(params.end(), data.begin(), data.end());
+  for (auto b : data) params.push_back(b);
   send_packet_(servo_id_, 0x03, params);
 }
+
 
 // =====================================================================
 // SPECIAL multiturn WritePos to 0x2A WITHOUT data_len byte
