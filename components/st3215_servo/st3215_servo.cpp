@@ -7,14 +7,6 @@ namespace st3215_servo {
 
 static const char *const TAG = "st3215_servo";
 
-
-
-void St3215Servo::send_raw(const std::vector<uint8_t>& data) {
-    this->write_array(data);
-    this->flush();
-}
-
-
 // =====================================================================
 // Torque Switch
 // =====================================================================
@@ -30,23 +22,24 @@ void St3215TorqueSwitch::write_state(bool state) {
 // =====================================================================
 uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
   uint16_t sum = 0;
+  // součet od ID po poslední byte před checksumem
   for (size_t i = 2; i < len; i++) sum += data[i];
   return (~sum) & 0xFF;
 }
 
 // =====================================================================
 // Send raw packet: FF FF ID LEN INST PARAMS... CHK
-// LEN = params + 2 (INST + CHK)
+// LEN = params + 2 (INST + PARAMS), stejně jako v tvých rámcích
 // =====================================================================
 void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
-                              const std::vector<uint8_t> &params) {
+                               const std::vector<uint8_t> &params) {
   std::vector<uint8_t> p;
   p.reserve(5 + params.size() + 1);
 
   p.push_back(0xFF);
   p.push_back(0xFF);
   p.push_back(id);
-  p.push_back(params.size() + 2);
+  p.push_back(params.size() + 2);  // LEN
   p.push_back(cmd);
   for (auto b : params) p.push_back(b);
   p.push_back(checksum_(p.data(), p.size()));
@@ -58,6 +51,7 @@ void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
 // =====================================================================
 // Read registers (0x02)
 // params: [addr, len]
+// → přesně odpovídá: FF FF 01 04 02 38 02 BE
 // =====================================================================
 bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
                                   std::vector<uint8_t> &out) {
@@ -71,6 +65,7 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
     while (this->available()) buf.push_back(this->read());
 
     if (buf.size() >= 6) {
+      // sync na 0xFF 0xFF
       size_t i = 0;
       while (i + 1 < buf.size() && !(buf[i] == 0xFF && buf[i + 1] == 0xFF)) i++;
       if (i > 0) buf.erase(buf.begin(), buf.begin() + i);
@@ -103,60 +98,44 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 }
 
 // =====================================================================
-// Normal WRITE registers helper for classic regs
-// STS wants: [addr, data_len, data...]
-// used for torque etc.
+// WRITE registrů (0x03)
+// ⚠️ DŮLEŽITÉ: Waveshare/STS zápis je:
+//   [INST=0x03] [addr] [data...]
+// žádný byte "data_len"
+// Torque ON: FF FF 01 04 03 28 01 CE
 // =====================================================================
 void St3215Servo::write_registers_(uint8_t addr,
                                    const std::vector<uint8_t> &data) {
   std::vector<uint8_t> params;
   params.reserve(1 + data.size());
   params.push_back(addr);
-  for (auto b : data) params.push_back(b);
+  params.insert(params.end(), data.begin(), data.end());
   send_packet_(servo_id_, 0x03, params);
 }
 
-
 // =====================================================================
-// SPECIAL multiturn WritePos to 0x2A WITHOUT data_len byte
-// matches your PowerShell test.
+// SPECIAL multiturn WritePos na 0x2A BEZ data_len
+// přesně podle tvého funkčního rámce:
+//   FF FF 01 0A 03 2A 32 00 00 01 00 2C 01 67
 // params: [0x2A, acc, posL, posH, turnsL, turnsH, speedL, speedH]
 // =====================================================================
-void St3215Servo::send_multiturn_pos_(uint8_t,
+void St3215Servo::send_multiturn_pos_(uint8_t acc,
                                       uint16_t pos,
                                       int16_t turns,
-                                      uint16_t speed)
-{
-  // ST3215 multiturn command:
-  // INST=0x03
-  // PARAMS:
-  //   0x2A,
-  //   speedL, speedH,
-  //   posL, posH,
-  //   turnsL, turnsH,
-  //   timeL, timeH   (2× 0x00)
-  //
-  // Počet parametrů = 8 → LEN = 8 + 2 = 10
-
+                                      uint16_t speed) {
   std::vector<uint8_t> params = {
       0x2A,
-      (uint8_t)(speed & 0xFF),
-      (uint8_t)(speed >> 8),
-
+      acc,
       (uint8_t)(pos & 0xFF),
-      (uint8_t)(pos >> 8),
-
+      (uint8_t)((pos >> 8) & 0xFF),
       (uint8_t)(turns & 0xFF),
-      (uint8_t)(turns >> 8),
-
-      0x00,  // time L
-      0x00   // time H
+      (uint8_t)((turns >> 8) & 0xFF),
+      (uint8_t)(speed & 0xFF),
+      (uint8_t)((speed >> 8) & 0xFF),
   };
-
+  // LEN = 8 + 2 = 10 → 0x0A, přesně jako v tvém vzorovém rámci
   this->send_packet_(this->servo_id_, 0x03, params);
 }
-
-
 
 // =====================================================================
 // Torque switch wiring
@@ -172,14 +151,15 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
 
-  // MOTOR MODE = continuous rotation
-  write_registers_(0x21, {0x01});
+  // 1) Servo mode (pozicní, tak jak máš ve funkční sekvenci)
+  // FF FF 01 04 03 21 00 D6
+  write_registers_(0x21, {0x00});
   delay(10);
 
-  // torque on
+  // 2) Torque ON
+  // FF FF 01 04 03 28 01 CE
   set_torque(true);
 }
-
 
 void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "ST3215 Servo:");
@@ -188,6 +168,9 @@ void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "  Turns full open: %.3f turns", turns_full_open_);
 }
 
+// =====================================================================
+// update(): čteme 0x38 (pozice) + 0x3A (turns)
+// =====================================================================
 void St3215Servo::update() {
   // 1) RAW POSITION (0x38)
   std::vector<uint8_t> data;
@@ -203,13 +186,13 @@ void St3215Servo::update() {
     whole_turns = (int16_t)(tdata[0] | (tdata[1] << 8));
   }
 
-  // 3) KOMBINACE OBĚ DVOU HODNOT
+  // 3) Kombinace – celé otáčky + zlomek z raw
   turns_unwrapped_ = whole_turns + (raw / RAW_PER_TURN);
 
-  // 4) Úhel pro senzor
+  // 4) Úhel v rámci 1 otáčky
   float angle_deg = (raw / RAW_PER_TURN) * 360.0f;
 
-  // 5) Publikace hodnot
+  // 5) Publikace
   if (angle_sensor_)
     angle_sensor_->publish_state(angle_deg);
   if (turns_sensor_)
@@ -223,31 +206,22 @@ void St3215Servo::update() {
   }
 }
 
-
+// =====================================================================
+// Torque ON/OFF přes 0x28
+// =====================================================================
 void St3215Servo::set_torque(bool on) {
-  if (on) {
-    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE});
-  } else {
-    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x00,0xCF});
-  }
   torque_on_ = on;
+  // TORQUE_ENABLE = 0x28, 1 byte
+  // ON: FF FF 01 04 03 28 01 CE
+  // OFF: FF FF 01 04 03 28 00 CF
+  write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
+
+  if (torque_switch_) torque_switch_->publish_state(on);
+  if (torque_sensor_) torque_sensor_->publish_state(on ? 1.0f : 0.0f);
 }
 
-void St3215Servo::set_motor_mode(bool motor) {
-  if (motor) {
-    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x01,0xD5});
-  } else {
-    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x00,0xD6});
-  }
-}
-
-void St3215Servo::move_plus_one_turn() {
-  send_raw({0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x01,0x00,0x2C,0x01,0x67});
-}
 void St3215Servo::stop() {
-  // Správný STOP podle tvých testů:
-  //  - posíláme jen torque OFF (0x28 = 0)
-  //  - žádný další multiturn příkaz, žádné "doskočení"
+  // STOP = torque OFF, žádný skok na pozici
   set_torque(false);
 }
 
@@ -264,6 +238,7 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   if (speed > 3400) speed = 3400;
   if (!torque_on_) set_torque(true);
 
+  // Cíl v absolutním počtu otáček dle servo počítadla
   float target_turns = turns_unwrapped_ + turns_delta;
   int32_t target_raw_total = (int32_t)lroundf(target_turns * RAW_PER_TURN);
 
@@ -274,11 +249,11 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   int16_t  turns_cnt = (int16_t)(target_raw_total / (int32_t)RAW_PER_TURN); // celé otáčky
   uint16_t spd = (uint16_t)speed;
 
+  // acc = DEFAULT_ACC (0x32) → přesně jako ve tvém testovacím +1 turn rámci
   this->send_multiturn_pos_(DEFAULT_ACC, pos, turns_cnt, spd);
 }
 
 void St3215Servo::move_to_turns(float turns, int speed) {
-  // absolutní počet otáček od nuly – přepočítáme na relativní
   float delta = turns - turns_unwrapped_;
   move_relative(delta, speed);
 }
