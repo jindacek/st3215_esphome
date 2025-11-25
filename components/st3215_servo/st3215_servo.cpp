@@ -233,6 +233,13 @@ void St3215Servo::set_torque(bool on) {
   torque_on_ = on;
 }
 
+void St3215Servo::set_motor_mode(bool motor) {
+  if (motor) {
+    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x01,0xD5});
+  } else {
+    send_raw({0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x00,0xD6});
+  }
+}
 
 void St3215Servo::stop() {
   // Správný STOP podle tvých testů:
