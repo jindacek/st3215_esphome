@@ -117,19 +117,26 @@ void St3215Servo::write_registers_(uint8_t addr,
 void St3215Servo::send_multiturn_pos_(uint8_t acc,
                                       uint16_t pos,
                                       int16_t turns,
-                                      uint16_t speed) {
+                                      uint16_t speed)
+{
+  // ST3215 správné pořadí:
+  // [0x2A, speedL, speedH, posL, posH, turnsL, turnsH, timeL, timeH]
+
   std::vector<uint8_t> params = {
       0x2A,
-      acc,
-      (uint8_t)(pos & 0xFF),
-      (uint8_t)((pos >> 8) & 0xFF),
-      (uint8_t)(turns & 0xFF),
-      (uint8_t)((turns >> 8) & 0xFF),
       (uint8_t)(speed & 0xFF),
-      (uint8_t)((speed >> 8) & 0xFF),
+      (uint8_t)(speed >> 8),
+      (uint8_t)(pos & 0xFF),
+      (uint8_t)(pos >> 8),
+      (uint8_t)(turns & 0xFF),
+      (uint8_t)(turns >> 8),
+      0x00, // time L
+      0x00  // time H
   };
+
   this->send_packet_(this->servo_id_, 0x03, params);
 }
+
 
 // =====================================================================
 // Torque switch wiring
@@ -145,14 +152,14 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
 
-  // 1) Přepnout do SERVO (pozičního) režimu: REG 0x21 = 0
-  //    (podle tvých testů: 0x21 = 0 → servo mode, 0x21 = 1 → motor mode)
-  write_registers_(0x21, {0x00});
+  // MOTOR MODE = continuous rotation
+  write_registers_(0x21, {0x01});
   delay(10);
 
-  // 2) Zapnout torque (přes 0x28)
+  // torque on
   set_torque(true);
 }
+
 
 void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "ST3215 Servo:");
