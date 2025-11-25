@@ -114,28 +114,40 @@ void St3215Servo::write_registers_(uint8_t addr,
 // matches your PowerShell test.
 // params: [0x2A, acc, posL, posH, turnsL, turnsH, speedL, speedH]
 // =====================================================================
-void St3215Servo::send_multiturn_pos_(uint8_t acc,
+void St3215Servo::send_multiturn_pos_(uint8_t,
                                       uint16_t pos,
                                       int16_t turns,
                                       uint16_t speed)
 {
-  // ST3215 správné pořadí:
-  // [0x2A, speedL, speedH, posL, posH, turnsL, turnsH, timeL, timeH]
+  // ST3215 multiturn command:
+  // INST=0x03
+  // PARAMS:
+  //   0x2A,
+  //   speedL, speedH,
+  //   posL, posH,
+  //   turnsL, turnsH,
+  //   timeL, timeH   (2× 0x00)
+  //
+  // Počet parametrů = 8 → LEN = 8 + 2 = 10
 
   std::vector<uint8_t> params = {
       0x2A,
       (uint8_t)(speed & 0xFF),
       (uint8_t)(speed >> 8),
+
       (uint8_t)(pos & 0xFF),
       (uint8_t)(pos >> 8),
+
       (uint8_t)(turns & 0xFF),
       (uint8_t)(turns >> 8),
-      0x00, // time L
-      0x00  // time H
+
+      0x00,  // time L
+      0x00   // time H
   };
 
   this->send_packet_(this->servo_id_, 0x03, params);
 }
+
 
 
 // =====================================================================
