@@ -131,7 +131,6 @@ void St3215Servo::send_multiturn_pos_(uint8_t acc,
   this->send_packet_(this->servo_id_, 0x03, params);
 }
 
-
 // =====================================================================
 // Torque switch wiring
 // =====================================================================
@@ -145,6 +144,13 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
 
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
+
+  // 1) Přepnout do SERVO (pozičního) režimu: REG 0x21 = 0
+  //    (podle tvých testů: 0x21 = 0 → servo mode, 0x21 = 1 → motor mode)
+  write_registers_(0x21, {0x00});
+  delay(10);
+
+  // 2) Zapnout torque (přes 0x28)
   set_torque(true);
 }
 
@@ -166,8 +172,10 @@ void St3215Servo::update() {
 
   if (have_last_) {
     int16_t diff = (int16_t)raw - (int16_t)last_raw_pos_;
-    if (diff > 2048) turns_unwrapped_ -= 1.0f;
-    else if (diff < -2048) turns_unwrapped_ += 1.0f;
+    if (diff > 2048)      // přechod 4095 → 0 (přetočení dopředu)
+      turns_unwrapped_ -= 1.0f;
+    else if (diff < -2048) // přechod 0 → 4095 (zpět)
+      turns_unwrapped_ += 1.0f;
     turns_unwrapped_ += diff / RAW_PER_TURN;
   } else {
     turns_unwrapped_ = turns_now;
@@ -190,21 +198,19 @@ void St3215Servo::set_torque(bool on) {
   torque_on_ = on;
   write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
   if (torque_switch_) torque_switch_->publish_state(on);
+  if (torque_sensor_) torque_sensor_->publish_state(on ? 1.0f : 0.0f);
 }
 
 void St3215Servo::stop() {
-  // Multiturn režim ignoruje StopMove, ale torque OFF zastaví motor hned
-  // a hlavně nic nequeueuje.
+  // Správný STOP podle tvých testů:
+  //  - posíláme jen torque OFF (0x28 = 0)
+  //  - žádný další multiturn příkaz, žádné "doskočení"
   set_torque(false);
-
-  // Volitelně: můžeš nechat i StopMove, neublíží:
-  // send_packet_(servo_id_, 0x13, {});
 }
 
-
-
-
-
+// -----------------------------
+// Movement helpers
+// -----------------------------
 void St3215Servo::rotate(bool cw, int speed) {
   float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
   move_relative(delta, speed);
@@ -221,11 +227,17 @@ void St3215Servo::move_relative(float turns_delta, int speed) {
   if (target_raw_total < 0) target_raw_total = 0;
   if (target_raw_total > 0x7FFFFFFF) target_raw_total = 0x7FFFFFFF;
 
-  uint16_t pos = (uint16_t)(target_raw_total % (int32_t)RAW_PER_TURN);   // 0..4095
-  int16_t turns_cnt = (int16_t)(target_raw_total / (int32_t)RAW_PER_TURN); // 0..14 u tebe
+  uint16_t pos = (uint16_t)(target_raw_total % (int32_t)RAW_PER_TURN);      // 0..4095
+  int16_t  turns_cnt = (int16_t)(target_raw_total / (int32_t)RAW_PER_TURN); // celé otáčky
   uint16_t spd = (uint16_t)speed;
 
   this->send_multiturn_pos_(DEFAULT_ACC, pos, turns_cnt, spd);
+}
+
+void St3215Servo::move_to_turns(float turns, int speed) {
+  // absolutní počet otáček od nuly – přepočítáme na relativní
+  float delta = turns - turns_unwrapped_;
+  move_relative(delta, speed);
 }
 
 void St3215Servo::set_angle(float angle_deg, int speed) {
