@@ -151,15 +151,18 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
 
-  // 1) Servo mode (pozicní, tak jak máš ve funkční sekvenci)
-  // FF FF 01 04 03 21 00 D6
-  write_registers_(0x21, {0x00});
+  // Motor mode at startup
+  const uint8_t motor_mode[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x21, 0x01, 0xD5};
+  this->write_array(motor_mode, sizeof(motor_mode));
+  this->flush();
   delay(10);
 
-  // 2) Torque ON
-  // FF FF 01 04 03 28 01 CE
-  set_torque(true);
+  // Torque ON
+  const uint8_t torque_on[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x01, 0xCE};
+  this->write_array(torque_on, sizeof(torque_on));
+  this->flush();
 }
+
 
 void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "ST3215 Servo:");
