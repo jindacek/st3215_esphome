@@ -229,9 +229,34 @@ void St3215Servo::stop() {
 // Movement helpers
 // -----------------------------
 void St3215Servo::rotate(bool cw, int speed) {
-  float delta = cw ? CW_CCW_STEP_TURNS : -CW_CCW_STEP_TURNS;
-  move_relative(delta, speed);
+  // vždy přepni do MOTOR MODE
+  {
+    const uint8_t motor_mode[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x21, 0x01, 0xD5};
+    this->write_array(motor_mode, sizeof(motor_mode));
+    this->flush();
+    delay(5);
+  }
+
+  // vždy zapni torque
+  {
+    const uint8_t torque_on[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x01, 0xCE};
+    this->write_array(torque_on, sizeof(torque_on));
+    this->flush();
+    delay(5);
+  }
+
+  if (cw) {
+    // ----- CW -----
+    const uint8_t cmd_cw[] = {0xFF,0xFF, servo_id_, 0x0A, 0x03, 0x2A, 0x32, 0x00, 0x00, 0x03, 0x00, 0x2C, 0x01, 0x65};
+    this->write_array(cmd_cw, sizeof(cmd_cw));
+  } else {
+    // ----- CCW -----
+    const uint8_t cmd_ccw[] = {0xFF,0xFF, servo_id_, 0x0A, 0x03, 0x2A, 0x32, 0x00, 0x00, 0x03, 0x00, 0xF6, 0xFF, 0x9D};
+    this->write_array(cmd_ccw, sizeof(cmd_ccw));
+  }
+  this->flush();
 }
+
 
 void St3215Servo::move_relative(float turns_delta, int speed) {
   if (speed < 0) speed = 0;
