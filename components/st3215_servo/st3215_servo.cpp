@@ -1,6 +1,5 @@
 #include "st3215_servo.h"
 #include "esphome/core/log.h"
-#include <cmath>
 
 namespace esphome {
 namespace st3215_servo {
@@ -18,19 +17,10 @@ void St3215TorqueSwitch::write_state(bool state) {
 }
 
 // =====================================================================
-// CHECKSUM
-// =====================================================================
-uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
-  uint16_t sum = 0;
-  for (size_t i = 2; i < len; i++) sum += data[i];
-  return (~sum) & 0xFF;
-}
-
-// =====================================================================
 // SETUP
 // =====================================================================
 void St3215Servo::setup() {
-  ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
+  ESP_LOGI(TAG, "ST3215 ready (RAW MODE), id=%u", servo_id_);
 
   // MOTOR MODE
   const uint8_t motor_mode[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x21, 0x01, 0xD5};
@@ -50,12 +40,30 @@ void St3215Servo::setup() {
 
 // =====================================================================
 void St3215Servo::dump_config() {
-  ESP_LOGCONFIG(TAG, "ST3215 Servo:");
+  ESP_LOGCONFIG(TAG, "ST3215 Servo RAW driver:");
   ESP_LOGCONFIG(TAG, "  ID: %u", servo_id_);
 }
 
 // =====================================================================
-// TORQUE ON/OFF — BEZ JAKÉKOLIV MAGIE
+// POVINNÝ update() — ale _nic nedělá_
+// =====================================================================
+void St3215Servo::update() {
+  // Záměrně prázdné
+}
+
+// =====================================================================
+// Torque switch wiring — jen propojení objektů
+// =====================================================================
+void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
+  torque_switch_ = s;
+  if (torque_switch_) {
+    torque_switch_->set_parent(this);
+    torque_switch_->publish_state(torque_on_);
+  }
+}
+
+// =====================================================================
+// TORQUE ON / OFF — JEN RÁMCE
 // =====================================================================
 void St3215Servo::set_torque(bool on) {
 
@@ -74,7 +82,7 @@ void St3215Servo::set_torque(bool on) {
 }
 
 // =====================================================================
-// STOP = RELEASE (jen rámec, žádná synchronizace switche)
+// STOP = RELEASE — NESAHÁ NA SWITCH
 // =====================================================================
 void St3215Servo::stop() {
   const uint8_t stop_cmd[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x00, 0xCF};
@@ -83,12 +91,12 @@ void St3215Servo::stop() {
 }
 
 // =====================================================================
-// ROTATE — JEN ČISTÉ PŘÍKAZY
+// ROTATE — JEN ČISTÉ RÁMCE
 // =====================================================================
 void St3215Servo::rotate(bool cw, int speed) {
 
   if (cw) {
-    // ---- DOLŮ ----
+    // ----- DOLŮ -----
     const uint8_t cmd_cw[] = {
       0xFF,0xFF, servo_id_, 0x0A, 0x03, 0x2A,
       0x32, 0x00, 0x00, 0x03, 0x00,
@@ -96,7 +104,7 @@ void St3215Servo::rotate(bool cw, int speed) {
     };
     this->write_array(cmd_cw, sizeof(cmd_cw));
   } else {
-    // ---- NAHORU ----
+    // ----- NAHORU -----
     const uint8_t cmd_ccw[] = {
       0xFF,0xFF, servo_id_, 0x0A, 0x03, 0x2A,
       0x32, 0x00, 0x00, 0x03, 0x00,
