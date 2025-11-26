@@ -151,17 +151,20 @@ void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 setup id=%u", servo_id_);
 
-  // Motor mode at startup
+  // MOTOR MODE
   const uint8_t motor_mode[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x21, 0x01, 0xD5};
   this->write_array(motor_mode, sizeof(motor_mode));
   this->flush();
   delay(10);
 
-  // Torque ON
+  // Torque ON at startup
   const uint8_t torque_on[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x01, 0xCE};
   this->write_array(torque_on, sizeof(torque_on));
   this->flush();
+
+  torque_on_ = true;
 }
+
 
 
 void St3215Servo::dump_config() {
@@ -213,20 +216,28 @@ void St3215Servo::update() {
 // Torque ON/OFF přes 0x28
 // =====================================================================
 void St3215Servo::set_torque(bool on) {
+  const uint8_t cmd_on[]  = {0xFF, 0xFF, servo_id_, 0x04, 0x03, 0x28, 0x01, 0xCE};
+  const uint8_t cmd_off[] = {0xFF, 0xFF, servo_id_, 0x04, 0x03, 0x28, 0x00, 0xCF};
+
+  if (on) {
+    this->write_array(cmd_on, sizeof(cmd_on));
+  } else {
+    this->write_array(cmd_off, sizeof(cmd_off));
+  }
+  this->flush();
+
   torque_on_ = on;
-  // TORQUE_ENABLE = 0x28, 1 byte
-  // ON: FF FF 01 04 03 28 01 CE
-  // OFF: FF FF 01 04 03 28 00 CF
-  write_registers_(0x28, {(uint8_t)(on ? 1 : 0)});
 
   if (torque_switch_) torque_switch_->publish_state(on);
-  if (torque_sensor_) torque_sensor_->publish_state(on ? 1.0f : 0.0f);
 }
 
+
 void St3215Servo::stop() {
-  // STOP = torque OFF, žádný skok na pozici
-  set_torque(false);
+  const uint8_t stop_cmd[] = {0xFF, 0xFF, servo_id_, 0x04, 0x03, 0x28, 0x00, 0xCF};
+  this->write_array(stop_cmd, sizeof(stop_cmd));
+  this->flush();
 }
+
 
 // -----------------------------
 // Movement helpers
