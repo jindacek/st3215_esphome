@@ -145,18 +145,30 @@ void St3215Servo::set_torque(bool on) {
 
   const uint8_t torque_on[]  = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x01, 0xCE};
   const uint8_t torque_off[] = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x00, 0xCF};
+  const uint8_t stop_cmd[]   = {0xFF,0xFF, servo_id_, 0x04, 0x03, 0x28, 0x00, 0xCF};
 
   if (on) {
+
+    // 1) STOP MOTOR FIRST
+    this->write_array(stop_cmd, sizeof(stop_cmd));
+    delay(10);
+
+    // 2) TORQUE ON
     this->write_array(torque_on, sizeof(torque_on));
     torque_on_ = true;
+
   } else {
+
+    // Torque OFF
     this->write_array(torque_off, sizeof(torque_off));
     torque_on_ = false;
+
   }
 
   this->flush();
   if (torque_switch_) torque_switch_->publish_state(torque_on_);
 }
+
 
 // ================= STOP =========================
 void St3215Servo::stop() {
