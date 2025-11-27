@@ -24,7 +24,7 @@ class St3215TorqueSwitch : public switch_::Switch {
   St3215Servo *parent_{nullptr};
 };
 
-class St3215Servo : public Component, public uart::UARTDevice {
+class St3215Servo : public PollingComponent, public uart::UARTDevice {
  public:
   St3215Servo(uart::UARTComponent *parent, uint8_t id)
       : PollingComponent(500), uart::UARTDevice(parent), servo_id_(id) {}
