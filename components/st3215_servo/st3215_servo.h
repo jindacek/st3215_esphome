@@ -4,6 +4,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/button/button.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 
 namespace esphome {
@@ -26,7 +27,7 @@ class St3215TorqueSwitch : public switch_::Switch {
 class St3215Servo : public Component, public uart::UARTDevice {
  public:
   St3215Servo(uart::UARTComponent *parent, uint8_t id)
-      : uart::UARTDevice(parent), servo_id_(id) {}
+      : PollingComponent(500), uart::UARTDevice(parent), servo_id_(id) {}
 
   void setup() override;
   void dump_config() override;
