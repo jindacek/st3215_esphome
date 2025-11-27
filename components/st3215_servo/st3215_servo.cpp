@@ -101,23 +101,42 @@ void St3215Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "  ID: %u", servo_id_);
 }
 
-// ================= UPDATE (READ POS + TURNS) ====
+// ================= UPDATE (READ POS + SOFTWARE MULTI-TURN) ====
 void St3215Servo::update() {
 
-  // POSITION
+  // ČTI RAW POZICI (0x38)
   std::vector<uint8_t> pos;
   if (!read_registers_(servo_id_, 0x38, 2, pos)) return;
   uint16_t raw = pos[0] | (pos[1] << 8);
 
-  // WHOLE TURNS
-  std::vector<uint8_t> trn;
-  int16_t whole = 0;
-  if (read_registers_(servo_id_, 0x3A, 2, trn))
-    whole = trn[0] | (trn[1] << 8);
+  // --- software multi-turn ---
+  static bool first = true;
+  static uint16_t last_raw = 0;
 
-  float total = whole + raw / RAW_PER_TURN;
-  float deg   = raw * 360.0f / RAW_PER_TURN;
+  if (first) {
+    last_raw = raw;
+    first = false;
+  }
 
+  // DETEKCE PŘETEČENÍ
+  int16_t diff = (int16_t)raw - (int16_t)last_raw;
+
+  if (diff > 2048) {
+    // přeteklo zpět (4095 → 0)
+    turns_unwrapped_ -= 1.0f;
+  } else if (diff < -2048) {
+    // přeteklo dopředu (0 → 4095)
+    turns_unwrapped_ += 1.0f;
+  }
+
+  last_raw = raw;
+
+  // SPOČTI CELKOVOU POLOHU
+  float frac = raw / RAW_PER_TURN;
+  float total = turns_unwrapped_ + frac;
+  float deg   = frac * 360.0f;
+
+  // PUBLIKACE
   if (angle_sensor_) angle_sensor_->publish_state(deg);
   if (turns_sensor_) turns_sensor_->publish_state(total);
 
@@ -128,8 +147,8 @@ void St3215Servo::update() {
     percent_sensor_->publish_state(pct);
   }
 
-  turns_unwrapped_ = total;
 }
+
 
 // ================= Wiring =======================
 void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
