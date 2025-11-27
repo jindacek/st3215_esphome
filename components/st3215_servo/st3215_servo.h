@@ -92,7 +92,7 @@ class St3215RotateAction : public Action<> {
   explicit St3215RotateAction(St3215Servo *p) : parent_(p) {}
   void set_direction(bool cw) { cw_ = cw; }
 
-  void play(ActionContext &ctx) override {
+  void play() override {
     parent_->rotate(cw_);
   }
 
@@ -105,7 +105,9 @@ class St3215StopAction : public Action<> {
  public:
   explicit St3215StopAction(St3215Servo *p) : parent_(p) {}
 
-  void play(ActionContext &ctx) override { parent_->stop(); }
+  void play() override {
+    parent_->stop();
+  }
 
  protected:
   St3215Servo *parent_;
