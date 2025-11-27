@@ -89,29 +89,36 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
 class St3215RotateAction : public Action<> {
  public:
-  explicit St3215RotateAction(St3215Servo *p) : parent_(p) {}
-  void set_direction(bool cw) { cw_ = cw; }
+  St3215RotateAction() = default;
+
+  void set_parent(St3215Servo *p) { parent_ = p; }
+  void set_cw(bool v) { cw_ = v; }
+  void set_speed(int s) { speed_ = s; }
 
   void play() override {
-    parent_->rotate(cw_);
+    if (parent_) parent_->rotate(cw_);
   }
 
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
   bool cw_{true};
+  int speed_{600};
 };
+
 
 class St3215StopAction : public Action<> {
  public:
-  explicit St3215StopAction(St3215Servo *p) : parent_(p) {}
+  St3215StopAction() = default;
+  void set_parent(St3215Servo *p) { parent_ = p; }
 
   void play() override {
-    parent_->stop();
+    if (parent_) parent_->stop();
   }
 
  protected:
-  St3215Servo *parent_;
+  St3215Servo *parent_{nullptr};
 };
+
 
 
 }  // namespace st3215_servo
