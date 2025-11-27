@@ -115,7 +115,8 @@ void St3215Servo::update() {
 
   if (percent_sensor_ && has_max_) {
     float pct = (total / max_turns_) * 100.0f;
-    pct = clamp(pct, 0, 100);
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
     percent_sensor_->publish_state(pct);
   }
 
