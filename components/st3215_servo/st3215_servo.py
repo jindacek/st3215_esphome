@@ -11,8 +11,11 @@ from esphome.const import (
     ICON_ROTATE_RIGHT,
 )
 
-DEPENDENCIES = ["uart", "sensor", "switch", "text_sensor"]
-AUTO_LOAD = ["switch", "text_sensor"]
+//DEPENDENCIES = ["uart", "sensor", "switch", "text_sensor"]
+//AUTO_LOAD = ["switch", "text_sensor"]
+DEPENDENCIES = ["text_sensor"]
+AUTO_LOAD = ["text_sensor"]
+
 
 st3215_ns = cg.esphome_ns.namespace("st3215_servo")
 St3215Servo = st3215_ns.class_("St3215Servo", cg.PollingComponent, uart.UARTDevice)
