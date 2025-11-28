@@ -9,12 +9,6 @@
 #include "esphome/core/helpers.h"
 #include <vector>
 
-// ---- FORCE LINK OF text_sensor (ESPHome 2025 fix) ----
-namespace esphome {
-namespace text_sensor {
-  void link_text_sensor();
-}
-}
 // -----------------------------------------------------
 
 namespace esphome {
