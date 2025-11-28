@@ -75,8 +75,8 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 
 // ================= TEXT SENSOR HELPER =================
 void St3215Servo::publish_state_text_(const char *msg) {
-  if (state_text_sensor_ != nullptr) {
-    state_text_sensor_->publish_state(msg);
+  if (state_text_sensor_) {
+    state_text_sensor_->publish_state(std::string(msg));
   }
 }
 
