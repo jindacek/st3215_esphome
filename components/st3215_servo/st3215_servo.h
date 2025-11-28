@@ -4,7 +4,10 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/number/number.h"   
+#include "esphome/core/helpers.h"
 #include <vector>
+
 
 namespace esphome {
 namespace st3215_servo {
