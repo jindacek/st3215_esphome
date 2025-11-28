@@ -39,6 +39,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_servo_id(uint8_t id) { servo_id_ = id; }
   void set_turns_full_open(float t) { max_turns_ = t; has_max_ = true; }
 
+  // compatibility dummy:
+  void set_max_angle(float) {}
+
   // Ovládání
   void rotate(bool cw, int speed);
   void stop();
