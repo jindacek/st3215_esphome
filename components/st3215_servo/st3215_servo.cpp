@@ -3,6 +3,12 @@
 #include <cmath>
 
 namespace esphome {
+namespace text_sensor {
+  void link_text_sensor() {}
+}
+}
+
+namespace esphome {
 namespace st3215_servo {
 
 static const char *const TAG = "st3215_servo";
