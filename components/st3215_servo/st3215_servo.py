@@ -77,8 +77,8 @@ async def to_code(config):
         cg.add(sw.set_parent(var))
         cg.add(var.set_torque_switch(sw))
 
-    if "state_text" in config:
-        ts = await text_sensor.new_text_sensor(config["state_text"])
+    if CONF_STATE_TEXT in config:
+        ts = await text_sensor.new_text_sensor(config[CONF_STATE_TEXT])
         cg.add(var.set_state_text_sensor(ts))
 
 # ----------------- Actions (původní) -----------------
