@@ -28,6 +28,7 @@ CONF_SERVO_ID = "servo_id"
 CONF_TURNS_FULL_OPEN = "turns_full_open"
 CONF_MAX_ANGLE = "max_angle"
 CONF_TORQUE_SWITCH = "torque_switch"
+CONF_STATE_TEXT = "state_text"
 
 CONFIG_SCHEMA = (
     cv.Schema(
