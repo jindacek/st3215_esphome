@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import uart, sensor, switch
+from esphome.components import uart, sensor, switch, text_sensor
 from esphome.const import (
     CONF_ID,
     CONF_UART_ID,
@@ -12,7 +12,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["uart", "sensor", "switch"]
-AUTO_LOAD = ["switch"]
+AUTO_LOAD = ["switch", "text_sensor"]
 
 st3215_ns = cg.esphome_ns.namespace("st3215_servo")
 St3215Servo = st3215_ns.class_("St3215Servo", cg.PollingComponent, uart.UARTDevice)
@@ -43,6 +43,9 @@ CONFIG_SCHEMA = (
             cv.Optional("percent"): sensor.sensor_schema(unit_of_measurement=UNIT_PERCENT),
 
             cv.Optional(CONF_TORQUE_SWITCH): switch.switch_schema(St3215TorqueSwitch),
+
+            # nový textový senzor – stav/hlášky kalibrace
+            cv.Optional("state_text"): text_sensor.text_sensor_schema(),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -74,7 +77,11 @@ async def to_code(config):
         cg.add(sw.set_parent(var))
         cg.add(var.set_torque_switch(sw))
 
-# ----------------- Actions -----------------
+    if "state_text" in config:
+        ts = await text_sensor.new_text_sensor(config["state_text"])
+        cg.add(var.set_state_text_sensor(ts))
+
+# ----------------- Actions (původní) -----------------
 
 ROTATE_SCHEMA = cv.Schema(
     {
