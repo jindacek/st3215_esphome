@@ -108,5 +108,14 @@ void St3215Servo::publish_percent_(float pct) {
   if (percent_sensor_) percent_sensor_->publish_state(pct);
 }
 
+void St3215TorqueSwitch::write_state(bool state) {
+  if (!parent_) return;
+
+  // zatím jen log, dokud nebude implementovaný skutečný torque protokol
+  ESP_LOGI("st3215", "Torque switch: %s", state ? "ON" : "OFF");
+
+  publish_state(state);
+}
+
 }  // namespace st3215_servo
 }  // namespace esphome
