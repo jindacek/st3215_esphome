@@ -2,11 +2,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-namespace esphome {
-namespace text_sensor {
-  void link_text_sensor() {}
-}
-}
+
 
 namespace esphome {
 namespace st3215_servo {
