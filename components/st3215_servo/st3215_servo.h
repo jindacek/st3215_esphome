@@ -21,6 +21,16 @@ enum CalibState {
   CALIB_ERROR = 4
 };
 
+class St3215TorqueSwitch : public Component, public switch_::Switch {
+ public:
+  void set_parent(class St3215Servo *parent) { parent_ = parent; }
+
+ protected:
+  void write_state(bool state) override;
+
+  class St3215Servo *parent_{nullptr};
+};
+
 class St3215Servo : public Component, public uart::UARTDevice {
  public:
   void setup() override;
