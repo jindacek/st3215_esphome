@@ -11,8 +11,7 @@ from esphome.const import (
     ICON_ROTATE_RIGHT,
 )
 
-//DEPENDENCIES = ["uart", "sensor", "switch", "text_sensor"]
-//AUTO_LOAD = ["switch", "text_sensor"]
+
 DEPENDENCIES = ["text_sensor"]
 AUTO_LOAD = ["text_sensor"]
 
