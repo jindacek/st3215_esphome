@@ -78,6 +78,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   uint16_t last_raw_{0};
   bool have_last_{false};
   float turns_unwrapped_{0};
+  int32_t turns_base_{0};
 
   float zero_offset_{0};
   float max_turns_{0};
