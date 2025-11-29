@@ -160,10 +160,20 @@ void St3215Servo::update() {
     percent_sensor_->publish_state(percent);
   }
 
+  // SW koncáky
+  // if (has_zero_ && total <= 0.0f) {
+    // ESP_LOGI(TAG, "SW KONCÁK: horní – stop");
+    // stop();
+  // }
+  // if (has_max_ && total >= max_turns_) {
+    // ESP_LOGI(TAG, "SW KONCÁK: spodní – stop");
+    // stop();
+  // }
+  
   // SW koncáky – zatím vypnuté, ale uvnitř funkce!
   // if (has_zero_ && total <= 0) stop();
   // if (has_max_ && total >= max_turns_) stop();
-}  // <– a TADY už je jen JEDNA zavírací }
+}  
 
 
 // ================= TORQUE =================
