@@ -120,15 +120,27 @@ void St3215Servo::update() {
   uint16_t raw = pos[0] | (pos[1] << 8);
 
   // soft multiturn
-  if (!have_last_) {
-    have_last_ = true;
-  } else {
-    int diff = (int)raw - (int)last_raw_;
-    if (diff > 2048) turns_unwrapped_ -= 1;
-    else if (diff < -2048) turns_unwrapped_ += 1;
-  }
+static int32_t turns_base = 0;
+
+if (!have_last_) {
   last_raw_ = raw;
-  turns_unwrapped_ = floor(turns_unwrapped_) + (raw / RAW_PER_TURN);
+  turns_unwrapped_ = raw / RAW_PER_TURN;
+  have_last_ = true;
+  return;
+}
+
+int diff = (int)raw - (int)last_raw_;
+
+if (diff > 2048) {
+  turns_base--;
+} 
+else if (diff < -2048) {
+  turns_base++;
+}
+
+last_raw_ = raw;
+turns_unwrapped_ = turns_base + (raw / RAW_PER_TURN);
+
 
   float angle = (raw / RAW_PER_TURN) * 360;
   float total = turns_unwrapped_ - zero_offset_;
