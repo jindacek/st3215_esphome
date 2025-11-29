@@ -220,30 +220,28 @@ void St3215Servo::confirm_calibration_step() {
 
   if (!calibration_active_) return;
 
-  // ====== HORNÍ POZICE ======
+  // ===== HORNÍ =====
   if (calib_state_ == CALIB_WAIT_TOP) {
 
-    // nastav nulovou referenci
     zero_offset_ = turns_unwrapped_;
     turns_base_ = 0;
     have_last_ = false;
-
     has_zero_ = true;
 
-    ESP_LOGI(TAG, "TOP SET (zero)");
+    ESP_LOGI(TAG, "TOP SET = 0 TURNS");
 
     update_calib_state_(CALIB_WAIT_BOTTOM);
-    ESP_LOGI(TAG, "Kalibrace – najeď na SPODNÍ polohu");
+    ESP_LOGI(TAG, "Najeď na SPODNÍ polohu a potvrď");
     return;
   }
 
-  // ====== SPODNÍ POZICE ======
+  // ===== SPODNÍ =====
   if (calib_state_ == CALIB_WAIT_BOTTOM) {
 
-    float diff = fabsf(turns_unwrapped_ - zero_offset_);
+    float diff = turns_unwrapped_ - zero_offset_;
 
-    if (diff < 0.1f) {
-      ESP_LOGW(TAG, "Kalibrace chyba: malý rozsah pohybu!");
+    if (diff <= 0.3f) {
+      ESP_LOGW(TAG, "Chyba kalibrace: spodní musí být níž než horní!");
       return;
     }
 
@@ -253,10 +251,11 @@ void St3215Servo::confirm_calibration_step() {
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
 
-    ESP_LOGI(TAG, "BOTTOM SET, RANGE = %.2f TURNS", max_turns_);
+    ESP_LOGI(TAG, "SPODNÍ SET = %.2f TURNS", max_turns_);
     return;
   }
 }
+
 
 
 
