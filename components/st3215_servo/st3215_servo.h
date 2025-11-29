@@ -26,11 +26,11 @@ class St3215TorqueSwitch : public switch_::Switch, public Component {
 
 // ====================== Kalibrační stav ========================
 enum CalibState {
-  CALIB_IDLE = 0,        // nutná kalibrace
-  CALIB_WAIT_TOP = 1,    // najeď na horní
-  CALIB_WAIT_BOTTOM = 2, // najeď na spodní
-  CALIB_DONE = 3,        // připraveno
-  CALIB_ERROR = 4        // chyba kalibrace
+  CALIB_IDLE = 0,
+  CALIB_WAIT_TOP = 1,
+  CALIB_WAIT_BOTTOM = 2,
+  CALIB_DONE = 3,
+  CALIB_ERROR = 4
 };
 
 
@@ -50,7 +50,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   // YAML settery
   void set_servo_id(uint8_t id) { servo_id_ = id; }
   void set_turns_full_open(float t) { max_turns_ = t; has_max_ = true; }
-  void set_max_angle(float) {}   // kompatibilita
+  void set_max_angle(float) {}
 
   // Ovládání
   void rotate(bool cw, int speed);
@@ -97,6 +97,10 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *calib_state_sensor_{nullptr};
 
   St3215TorqueSwitch *torque_switch_{nullptr};
+
+  // Stav pohybu pro SW koncáky
+  bool moving_{false};
+  bool moving_cw_{false};
 
   // Low level comm
   uint8_t checksum_(const uint8_t *data, size_t len);
