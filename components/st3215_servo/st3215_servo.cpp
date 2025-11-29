@@ -212,7 +212,6 @@ void St3215Servo::start_calibration() {
   have_last_ = false;
 
   update_calib_state_(CALIB_WAIT_TOP);
-  publish_state_text_("Kalibrace: najeď na HORNÍ polohu a potvrď");
   ESP_LOGI(TAG, "Kalibrace zahájena – najeď na HORNÍ polohu");
 }
 
@@ -233,7 +232,6 @@ void St3215Servo::confirm_calibration_step() {
     ESP_LOGI("st3215_servo", "TOP SET (zero)");
 
     update_calib_state_(CALIB_WAIT_BOTTOM);
-    publish_state_text_("Kalibrace: najeď na SPODNÍ polohu a potvrď");
     ESP_LOGI(TAG, "Kalibrace zahájena – najeď na SPODNÍ polohu");
     return;
   }
@@ -245,7 +243,6 @@ void St3215Servo::confirm_calibration_step() {
 
     if (diff <= 0.1f) {
       ESP_LOGW("st3215_servo", "Kalibrace chyba: spodní poloha je nad horní!");
-      publish_state_text_("CHYBA: špatná poloha");
       return;
     }
 
@@ -257,7 +254,6 @@ void St3215Servo::confirm_calibration_step() {
 
     ESP_LOGI("st3215_servo", "BOTTOM SET, RANGE = %.2f TURNS", max_turns_);
 
-    publish_state_text_("Kalibrace hotová");
     return;
   }
 }
