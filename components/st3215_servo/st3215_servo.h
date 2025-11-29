@@ -26,10 +26,10 @@ class St3215TorqueSwitch : public switch_::Switch, public Component {
 
 // ====================== Kalibrační stav ========================
 enum CalibState {
-  CALIB_IDLE,
-  CALIB_WAIT_TOP,     // horní poloha
-  CALIB_WAIT_BOTTOM,  // spodní poloha
-  CALIB_DONE
+  CALIB_IDLE = 0,        // nutná kalibrace
+  CALIB_WAIT_TOP = 1,    // najeď na horní
+  CALIB_WAIT_BOTTOM = 2, // najeď na spodní
+  CALIB_DONE = 3         // připraveno
 };
 
 
