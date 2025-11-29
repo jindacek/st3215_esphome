@@ -102,7 +102,7 @@ void St3215Servo::setup() {
     update_calib_state_(CALIB_IDLE);
     ESP_LOGI(TAG, "Nutná kalibrace rolety");
   } else {
-    update_calib_state_(CALIB_READY);
+    update_calib_state_(CALIB_DONE);   // správný stav „připraveno“
     ESP_LOGI(TAG, "Roleta připravena (max_turns=%.2f)", max_turns_);
   }
 }
@@ -131,10 +131,8 @@ void St3215Servo::update() {
   int diff = (int) raw - (int) last_raw_;
 
   if (diff > 2048) {
-    // skok přes 0 → přidáme jednu otáčku
     turns_base_--;
   } else if (diff < -2048) {
-    // skok dozadu přes 0 → ubereme otáčku
     turns_base_++;
   }
 
@@ -160,13 +158,12 @@ void St3215Servo::update() {
 
     percent_sensor_->publish_state(percent);
   }
-}
 
-
-  // SW koncáky
+  // SW koncáky – zatím vypnuté, ale uvnitř funkce!
   // if (has_zero_ && total <= 0) stop();
   // if (has_max_ && total >= max_turns_) stop();
-}
+}  // <– a TADY už je jen JEDNA zavírací }
+
 
 // ================= TORQUE =================
 void St3215Servo::set_torque(bool on) {
