@@ -141,18 +141,19 @@ last_raw_ = raw;
 turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
 
-  float angle = (raw / RAW_PER_TURN) * 360;
-  float total = turns_unwrapped_ - zero_offset_;
+float angle = (raw / RAW_PER_TURN) * 360;
+float total = turns_unwrapped_ - zero_offset_;
 
-  if (angle_sensor_) angle_sensor_->publish_state(angle);
-  if (turns_sensor_) turns_sensor_->publish_state(total);
+if (has_zero_ && has_max_) {
+  float percent = 100.0f - (total / max_turns_) * 100.0f;
 
-  if (percent_sensor_ && has_max_) {
-    float pct = (1.0f - abs(total / max_turns_)) * 100.0f;
-    if (pct < 0) pct = 0;
-    if (pct > 100) pct = 100;
-    percent_sensor_->publish_state(pct);
-  }
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+
+  percent_sensor_->publish_state(percent);
+}
+
+
 
   // SW koncáky
   // if (has_zero_ && total <= 0) stop();
@@ -201,37 +202,60 @@ void St3215Servo::start_calibration() {
   calibration_active_ = true;
   has_zero_ = false;
   has_max_ = false;
-  update_calib_state_(CALIB_WAIT_ZERO);
+
+  turns_base_ = 0;
+  have_last_ = false;
+
+  update_calib_state_(CALIB_WAIT_TOP);
+  publish_state_text_("Kalibrace: najeď na HORNÍ polohu a potvrď");
   ESP_LOGI(TAG, "Kalibrace zahájena – najeď na SPODNÍ polohu");
 }
 
 void St3215Servo::confirm_calibration_step() {
+
   if (!calibration_active_) return;
 
-  switch (calib_state_) {
-    case CALIB_WAIT_ZERO:
-      set_zero();
-      update_calib_state_(CALIB_WAIT_MAX);
-      ESP_LOGI(TAG, "ZERO OK – najeď na HORNÍ polohu");
-      break;
+  // ====== HORNÍ POZICE ======
+  if (calib_state_ == CALIB_WAIT_TOP) {
 
-    case CALIB_WAIT_MAX:
-      set_max();
-      if (has_max_) {
-        calibration_active_ = false;
-        update_calib_state_(CALIB_READY);
-        ESP_LOGI(TAG, "Kalibrace dokončena");
-      } else {
-        calibration_active_ = false;
-        update_calib_state_(CALIB_ERROR);
-        ESP_LOGW(TAG, "Kalibrace selhala");
-      }
-      break;
+    // nastav nulovou referenci
+    zero_offset_ = turns_unwrapped_;
+    turns_base_ = 0;
+    have_last_ = false;
 
-    default:
-      break;
+    has_zero_ = true;
+
+    ESP_LOGI("st3215_servo", "TOP SET (zero)");
+
+    update_calib_state_(CALIB_WAIT_BOTTOM);
+    publish_state_text_("Kalibrace: najeď na SPODNÍ polohu a potvrď");
+    return;
+  }
+
+  // ====== SPODNÍ POZICE ======
+  if (calib_state_ == CALIB_WAIT_BOTTOM) {
+
+    float diff = turns_unwrapped_ - zero_offset_;
+
+    if (diff <= 0.1f) {
+      ESP_LOGW("st3215_servo", "Kalibrace chyba: spodní poloha je nad horní!");
+      publish_state_text_("CHYBA: špatná poloha");
+      return;
+    }
+
+    max_turns_ = diff;
+    has_max_ = true;
+
+    calibration_active_ = false;
+    update_calib_state_(CALIB_DONE);
+
+    ESP_LOGI("st3215_servo", "BOTTOM SET, RANGE = %.2f TURNS", max_turns_);
+
+    publish_state_text_("Kalibrace hotová");
+    return;
   }
 }
+
 
 void St3215Servo::set_zero() {
   zero_offset_ = turns_unwrapped_;
