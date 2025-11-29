@@ -1,11 +1,19 @@
 #include "st3215_servo.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome {
 namespace st3215_servo {
 
-static const char *TAG = "st3215";
+static const char *const TAG = "st3215_servo";
 
+// ================= TORQUE SWITCH =================
+void St3215TorqueSwitch::write_state(bool state) {
+  if (parent_) parent_->set_torque(state);
+  publish_state(state);
+}
+
+// ================= CALIB STATE =================
 void St3215Servo::update_calib_state_(CalibState s) {
   calib_state_ = s;
   if (calib_state_sensor_) {
@@ -13,58 +21,176 @@ void St3215Servo::update_calib_state_(CalibState s) {
   }
 }
 
+// ================= CHECKSUM =================
+uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
+  uint16_t sum = 0;
+  for (size_t i = 2; i < len; i++) sum += data[i];
+  return (~sum) & 0xFF;
+}
+
+// ================= SEND PACKET =================
+void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
+                               const std::vector<uint8_t> &params) {
+  std::vector<uint8_t> p;
+  p.reserve(6 + params.size());
+
+  p.push_back(0xFF);
+  p.push_back(0xFF);
+  p.push_back(id);
+  p.push_back(params.size() + 2);
+  p.push_back(cmd);
+  for (auto b : params) p.push_back(b);
+  p.push_back(checksum_(p.data(), p.size()));
+
+  write_array(p);
+  flush();
+}
+
+// ================= READ REGISTERS =================
+bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
+                                  std::vector<uint8_t> &out) {
+  send_packet_(id, 0x02, {addr, len});
+  uint32_t start = millis();
+  std::vector<uint8_t> buf;
+
+  while (millis() - start < 40) {
+    while (available()) buf.push_back(read());
+
+    if (buf.size() >= 6) {
+      size_t i = 0;
+      while (i + 1 < buf.size() && !(buf[i] == 0xFF && buf[i + 1] == 0xFF)) i++;
+      if (i > 0) buf.erase(buf.begin(), buf.begin() + i);
+
+      if (buf.size() < 4) continue;
+      uint8_t rlen = buf[3];
+      if (buf.size() < (size_t)(rlen + 4)) continue;
+
+      uint8_t chk = buf[rlen + 3];
+      uint8_t calc = checksum_(buf.data(), rlen + 3);
+      if (chk != calc) {
+        buf.clear();
+        continue;
+      }
+
+      if (buf[4] != 0) return false;
+      out.assign(buf.begin() + 5, buf.begin() + 5 + len);
+      return true;
+    }
+    delay(1);
+  }
+  return false;
+}
+
+// ================= SETUP =================
 void St3215Servo::setup() {
-  if (!has_zero_ || max_turns_ <= 0) {
-    calibrated_ = false;
+  ESP_LOGI(TAG, "ST3215 init ID=%u", servo_id_);
+
+  // Motor mode
+  const uint8_t motor_mode[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x01,0xD5};
+  write_array(motor_mode, sizeof(motor_mode));
+  flush();
+
+  // Torque ON
+  const uint8_t torque_on[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
+  write_array(torque_on, sizeof(torque_on));
+  flush();
+
+  torque_on_ = true;
+
+  // Stav kalibrace
+  if (!has_zero_ || !has_max_) {
     update_calib_state_(CALIB_IDLE);
     ESP_LOGI(TAG, "Nutná kalibrace rolety");
   } else {
-    calibrated_ = true;
     update_calib_state_(CALIB_READY);
-    ESP_LOGI(TAG, "Roleta připravena, max_turns=%.2f", max_turns_);
+    ESP_LOGI(TAG, "Roleta připravena (max_turns=%.2f)", max_turns_);
   }
 }
 
-void St3215Servo::loop() {
-  if (!moving_) return;
+// ================= CONFIG =================
+void St3215Servo::dump_config() {
+  ESP_LOGCONFIG(TAG, "ST3215 Servo ID=%u", servo_id_);
 }
 
-void St3215Servo::rotate(bool cw, int speed) {
-  moving_ = true;
-  direction_ = cw;
-  speed_ = speed;
-  ESP_LOGD(TAG, "Rotate %s speed %d", cw ? "CW" : "CCW", speed);
-}
+// ================= UPDATE =================
+void St3215Servo::update() {
+  std::vector<uint8_t> pos;
+  if (!read_registers_(servo_id_, 0x38, 2, pos)) return;
 
-void St3215Servo::stop() {
-  moving_ = false;
-  ESP_LOGD(TAG, "STOP");
-}
+  uint16_t raw = pos[0] | (pos[1] << 8);
 
-void St3215Servo::set_zero() {
-  zero_turns_ = current_turns_;
-  has_zero_ = true;
-  ESP_LOGI(TAG, "ZERO uložen");
-}
-
-void St3215Servo::set_max() {
-  max_turns_ = current_turns_ - zero_turns_;
-  if (max_turns_ > 0.1f) {
-    has_max_ = true;
-    ESP_LOGI(TAG, "MAX uložen: %.2f otáček", max_turns_);
+  // soft multiturn
+  if (!have_last_) {
+    have_last_ = true;
   } else {
-    has_max_ = false;
-    ESP_LOGW(TAG, "MAX poloha neplatná");
+    int diff = (int)raw - (int)last_raw_;
+    if (diff > 2048) turns_unwrapped_ -= 1;
+    else if (diff < -2048) turns_unwrapped_ += 1;
   }
+  last_raw_ = raw;
+  turns_unwrapped_ = floor(turns_unwrapped_) + (raw / RAW_PER_TURN);
+
+  float angle = (raw / RAW_PER_TURN) * 360;
+  float total = turns_unwrapped_ - zero_offset_;
+
+  if (angle_sensor_) angle_sensor_->publish_state(angle);
+  if (turns_sensor_) turns_sensor_->publish_state(total);
+
+  if (percent_sensor_ && has_max_) {
+    float pct = (total / max_turns_) * 100;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    percent_sensor_->publish_state(pct);
+  }
+
+  // SW koncáky
+  if (has_zero_ && total <= 0) stop();
+  if (has_max_ && total >= max_turns_) stop();
 }
 
+// ================= TORQUE =================
+void St3215Servo::set_torque(bool on) {
+  const uint8_t torque_on[]  = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
+  const uint8_t torque_off[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x00,0xCF};
+
+  if (on) write_array(torque_on, sizeof(torque_on));
+  else write_array(torque_off, sizeof(torque_off));
+
+  flush();
+  torque_on_ = on;
+  if (torque_switch_) torque_switch_->publish_state(on);
+}
+
+// ================= STOP =================
+void St3215Servo::stop() {
+  const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
+  write_array(stop_cmd, sizeof(stop_cmd));
+  flush();
+}
+
+// ================= ROTATE =================
+void St3215Servo::rotate(bool cw, int speed) {
+  if (speed < 0) speed = -speed;
+
+  uint16_t mag = speed;
+  if (mag > 3000) mag = 3000;
+
+  uint8_t lo = mag & 0xFF;
+  uint8_t hi = (mag >> 8) & 0x7F;
+
+  if (!cw) hi |= 0x80;  // CCW bit
+
+  std::vector<uint8_t> p = {0x2E, lo, hi};
+  send_packet_(servo_id_, 0x03, p);
+}
+
+// ================= CALIBRATION =================
 void St3215Servo::start_calibration() {
   calibration_active_ = true;
   has_zero_ = false;
   has_max_ = false;
-  calibrated_ = false;
   update_calib_state_(CALIB_WAIT_ZERO);
-  ESP_LOGI(TAG, "Kalibrace zahájena – najeď na SPODNÍ polohu a potvrď");
+  ESP_LOGI(TAG, "Kalibrace zahájena – najeď na SPODNÍ polohu");
 }
 
 void St3215Servo::confirm_calibration_step() {
@@ -74,14 +200,13 @@ void St3215Servo::confirm_calibration_step() {
     case CALIB_WAIT_ZERO:
       set_zero();
       update_calib_state_(CALIB_WAIT_MAX);
-      ESP_LOGI(TAG, "ZERO OK – najeď na HORNÍ polohu a potvrď");
+      ESP_LOGI(TAG, "ZERO OK – najeď na HORNÍ polohu");
       break;
 
     case CALIB_WAIT_MAX:
       set_max();
       if (has_max_) {
         calibration_active_ = false;
-        calibrated_ = true;
         update_calib_state_(CALIB_READY);
         ESP_LOGI(TAG, "Kalibrace dokončena");
       } else {
@@ -96,25 +221,24 @@ void St3215Servo::confirm_calibration_step() {
   }
 }
 
-void St3215Servo::publish_angle_(float angle) {
-  if (angle_sensor_) angle_sensor_->publish_state(angle);
+void St3215Servo::set_zero() {
+  zero_offset_ = turns_unwrapped_;
+  has_zero_ = true;
+  ESP_LOGI(TAG, "ZERO SET");
 }
 
-void St3215Servo::publish_turns_(float turns) {
-  if (turns_sensor_) turns_sensor_->publish_state(turns);
+void St3215Servo::set_max() {
+  if (!has_zero_) return;
+  max_turns_ = turns_unwrapped_ - zero_offset_;
+  has_max_ = true;
+  ESP_LOGI(TAG, "MAX SET = %.2f", max_turns_);
 }
 
-void St3215Servo::publish_percent_(float pct) {
-  if (percent_sensor_) percent_sensor_->publish_state(pct);
-}
-
-void St3215TorqueSwitch::write_state(bool state) {
-  if (!parent_) return;
-
-  // zatím jen log, dokud nebude implementovaný skutečný torque protokol
-  ESP_LOGI("st3215", "Torque switch: %s", state ? "ON" : "OFF");
-
-  publish_state(state);
+// ================= SWITCH =================
+void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
+  torque_switch_ = s;
+  torque_switch_->set_parent(this);
+  torque_switch_->publish_state(torque_on_);
 }
 
 }  // namespace st3215_servo
