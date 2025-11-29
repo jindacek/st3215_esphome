@@ -144,8 +144,8 @@ void St3215Servo::update() {
   }
 
   // SW koncáky
-  if (has_zero_ && total <= 0) stop();
-  if (has_max_ && total >= max_turns_) stop();
+  // if (has_zero_ && total <= 0) stop();
+  // if (has_max_ && total >= max_turns_) stop();
 }
 
 // ================= TORQUE =================
@@ -165,6 +165,7 @@ void St3215Servo::set_torque(bool on) {
 void St3215Servo::stop() {
   const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
   write_array(stop_cmd, sizeof(stop_cmd));
+  ESP_LOGW("st3215", "STOP COMMAND CALLED");
   flush();
 }
 
