@@ -119,8 +119,7 @@ void St3215Servo::update() {
 
   uint16_t raw = pos[0] | (pos[1] << 8);
 
-  // -------- multiturn unwrap --------
-
+  // -------- soft multiturn unwrap --------
   if (!have_last_) {
     last_raw_ = raw;
     turns_base_ = 0;
@@ -129,12 +128,13 @@ void St3215Servo::update() {
     return;
   }
 
-  int diff = (int)raw - (int)last_raw_;
+  int diff = (int) raw - (int) last_raw_;
 
   if (diff > 2048) {
+    // skok přes 0 → přidáme jednu otáčku
     turns_base_--;
-  } 
-  else if (diff < -2048) {
+  } else if (diff < -2048) {
+    // skok dozadu přes 0 → ubereme otáčku
     turns_base_++;
   }
 
@@ -142,29 +142,25 @@ void St3215Servo::update() {
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
   // -------- výpočty --------
-
   float angle = (raw / RAW_PER_TURN) * 360.0f;
   float total = turns_unwrapped_ - zero_offset_;  // relativní otáčky od HORNÍ polohy
 
-  // ---------- publikování ----------
-
-  if (angle_sensor_)
+  // ---------- publikování hodnot ----------
+  if (angle_sensor_ != nullptr)
     angle_sensor_->publish_state(angle);
 
-  if (turns_sensor_)
+  if (turns_sensor_ != nullptr)
     turns_sensor_->publish_state(total);
 
-  if (percent_sensor_ && has_zero_ && has_max_) {
+  if (percent_sensor_ != nullptr && has_zero_ && has_max_) {
     float percent = 100.0f - (total / max_turns_) * 100.0f;
 
-    if (percent < 0) percent = 0;
-    if (percent > 100) percent = 100;
+    if (percent < 0.0f) percent = 0.0f;
+    if (percent > 100.0f) percent = 100.0f;
 
     percent_sensor_->publish_state(percent);
   }
 }
-
-
 
 
   // SW koncáky
