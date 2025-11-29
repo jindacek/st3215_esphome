@@ -216,17 +216,28 @@ void St3215Servo::start_calibration() {
   ESP_LOGI(TAG, "Kalibrace zahájena – najeď na HORNÍ polohu");
 }
 
+// ===== POTVRZENÍ KALIBRACE =====
 void St3215Servo::confirm_calibration_step() {
 
   if (!calibration_active_) return;
 
-  // ===== HORNÍ =====
+  // ===== HORNÍ POZICE =====
   if (calib_state_ == CALIB_WAIT_TOP) {
 
+    // uložit aktuální pozici jako absolutní nulu
     zero_offset_ = turns_unwrapped_;
+
+    // reset soft multiturn čítače
+    turns_unwrapped_ = 0;
     turns_base_ = 0;
+    last_raw_ = 0;
     have_last_ = false;
+
     has_zero_ = true;
+
+    // publikuj 100 % a 0 otáček
+    if (turns_sensor_)   turns_sensor_->publish_state(0);
+    if (percent_sensor_) percent_sensor_->publish_state(100);
 
     ESP_LOGI(TAG, "TOP SET = 0 TURNS");
 
@@ -235,19 +246,20 @@ void St3215Servo::confirm_calibration_step() {
     return;
   }
 
-  // ===== SPODNÍ =====
+  // ===== SPODNÍ POZICE =====
   if (calib_state_ == CALIB_WAIT_BOTTOM) {
 
-    float diff = turns_unwrapped_ - zero_offset_;
+    float diff = fabsf(turns_unwrapped_);
 
-    if (diff <= 0.3f) {
-      ESP_LOGW(TAG, "Chyba kalibrace: spodní musí být níž než horní!");
+    if (diff < 0.3f) {
+      ESP_LOGW(TAG, "Chyba kalibrace: rozsah je příliš malý!");
       return;
     }
 
     max_turns_ = diff;
     has_max_ = true;
 
+    // kalibrace hotová
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
 
@@ -255,6 +267,7 @@ void St3215Servo::confirm_calibration_step() {
     return;
   }
 }
+
 
 
 
