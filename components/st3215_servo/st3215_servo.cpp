@@ -208,7 +208,7 @@ void St3215Servo::start_calibration() {
 
   update_calib_state_(CALIB_WAIT_TOP);
   publish_state_text_("Kalibrace: najeď na HORNÍ polohu a potvrď");
-  ESP_LOGI(TAG, "Kalibrace zahájena – najeď na SPODNÍ polohu");
+  ESP_LOGI(TAG, "Kalibrace zahájena – najeď na HORNÍ polohu");
 }
 
 void St3215Servo::confirm_calibration_step() {
@@ -229,6 +229,7 @@ void St3215Servo::confirm_calibration_step() {
 
     update_calib_state_(CALIB_WAIT_BOTTOM);
     publish_state_text_("Kalibrace: najeď na SPODNÍ polohu a potvrď");
+    ESP_LOGI(TAG, "Kalibrace zahájena – najeď na SPODNÍ polohu");
     return;
   }
 
