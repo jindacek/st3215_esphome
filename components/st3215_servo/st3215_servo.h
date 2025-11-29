@@ -103,6 +103,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
 
   void update_calib_state_(CalibState s);
+  void publish_state_text_(const char *text);
 };
 
 }  // namespace st3215_servo
