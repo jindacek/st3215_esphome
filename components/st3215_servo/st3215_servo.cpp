@@ -120,7 +120,6 @@ void St3215Servo::update() {
   uint16_t raw = pos[0] | (pos[1] << 8);
 
   // soft multiturn
-static int32_t turns_base = 0;
 
 if (!have_last_) {
   last_raw_ = raw;
@@ -132,14 +131,14 @@ if (!have_last_) {
 int diff = (int)raw - (int)last_raw_;
 
 if (diff > 2048) {
-  turns_base--;
+  turns_base_--;
 } 
 else if (diff < -2048) {
-  turns_base++;
+  turns_base_++;
 }
 
 last_raw_ = raw;
-turns_unwrapped_ = turns_base + (raw / RAW_PER_TURN);
+turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
 
   float angle = (raw / RAW_PER_TURN) * 360;
@@ -237,6 +236,10 @@ void St3215Servo::confirm_calibration_step() {
 void St3215Servo::set_zero() {
   zero_offset_ = turns_unwrapped_;
   has_zero_ = true;
+  turns_base_ = 0;       // reset multiturn základu
+  have_last_ = false;   // reset čtení pozice
+  zero_offset_ = turns_unwrapped_;
+  has_zero_ = true;
   ESP_LOGI(TAG, "ZERO SET");
 }
 
@@ -244,6 +247,11 @@ void St3215Servo::set_max() {
   if (!has_zero_) return;
   max_turns_ = turns_unwrapped_ - zero_offset_;
   zero_offset_ = turns_unwrapped_;   // <- přenastavíme NULU na horní polohu
+  has_max_ = true;
+  turns_base_ = 0;       // znovu reset (pro jistotu)
+  have_last_ = false;
+  max_turns_ = turns_unwrapped_ - zero_offset_;
+  zero_offset_ = turns_unwrapped_;
   has_max_ = true;
   ESP_LOGI(TAG, "MAX SET = %.2f", max_turns_);
 }
