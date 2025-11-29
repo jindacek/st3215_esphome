@@ -17,7 +17,8 @@ void St3215TorqueSwitch::write_state(bool state) {
 void St3215Servo::update_calib_state_(CalibState s) {
   calib_state_ = s;
   if (calib_state_sensor_) {
-    calib_state_sensor_->publish_state((float) s);
+    calib_state_sensor_->publish_state((int) s);
+    // calib_state_sensor_->publish_state((float) s);
   }
 }
 
