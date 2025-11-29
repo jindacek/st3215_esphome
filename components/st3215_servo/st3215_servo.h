@@ -26,12 +26,12 @@ class St3215TorqueSwitch : public switch_::Switch, public Component {
 
 // ====================== Kalibrační stav ========================
 enum CalibState {
-  CALIB_IDLE = 0,
-  CALIB_READY = 1,
-  CALIB_WAIT_ZERO = 2,
-  CALIB_WAIT_MAX = 3,
-  CALIB_ERROR = 4
+  CALIB_IDLE,
+  CALIB_WAIT_TOP,     // horní poloha
+  CALIB_WAIT_BOTTOM,  // spodní poloha
+  CALIB_DONE
 };
+
 
 // =========================== Servo =============================
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
