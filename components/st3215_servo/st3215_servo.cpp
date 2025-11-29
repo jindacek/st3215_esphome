@@ -141,7 +141,7 @@ void St3215Servo::update() {
 
   // -------- výpočty --------
   float angle = (raw / RAW_PER_TURN) * 360.0f;
-  float total = turns_unwrapped_ - zero_offset_;  // relativní otáčky od HORNÍ polohy
+  float total = fabsf(turns_unwrapped_ - zero_offset_);  // relativní otáčky od HORNÍ polohy
 
   // ---------- publikování hodnot ----------
   if (angle_sensor_ != nullptr)
