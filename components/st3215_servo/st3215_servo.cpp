@@ -294,27 +294,31 @@ void St3215Servo::confirm_calibration_step() {
 
 
 void St3215Servo::set_zero() {
+  // Použij aktuální pozici jako horní referenci
   zero_offset_ = turns_unwrapped_;
   has_zero_ = true;
-  turns_base_ = 0;       // reset multiturn základu
-  have_last_ = false;   // reset čtení pozice
-  zero_offset_ = turns_unwrapped_;
-  has_zero_ = true;
-  ESP_LOGI(TAG, "ZERO SET");
+
+  ESP_LOGI(TAG, "ZERO SET (zero_offset = %.3f)", zero_offset_);
 }
 
 void St3215Servo::set_max() {
-  if (!has_zero_) return;
-  max_turns_ = turns_unwrapped_ - zero_offset_;
-  zero_offset_ = turns_unwrapped_;   // <- přenastavíme NULU na horní polohu
+  if (!has_zero_) {
+    ESP_LOGW(TAG, "MAX SET ignorován – zero není nastaveno");
+    return;
+  }
+
+  float span = fabsf(turns_unwrapped_ - zero_offset_);
+  if (span < 0.3f) {
+    ESP_LOGW(TAG, "MAX SET ignorován – malý rozsah (%.3f otáček)", span);
+    return;
+  }
+
+  max_turns_ = span;
   has_max_ = true;
-  turns_base_ = 0;       // znovu reset (pro jistotu)
-  have_last_ = false;
-  max_turns_ = turns_unwrapped_ - zero_offset_;
-  zero_offset_ = turns_unwrapped_;
-  has_max_ = true;
-  ESP_LOGI(TAG, "MAX SET = %.2f", max_turns_);
+
+  ESP_LOGI(TAG, "MAX SET = %.3f", max_turns_);
 }
+
 
 // ================= SWITCH =================
 void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
