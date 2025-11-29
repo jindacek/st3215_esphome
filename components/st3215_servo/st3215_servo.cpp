@@ -208,6 +208,8 @@ void St3215Servo::start_calibration() {
   calibration_active_ = true;
   has_zero_ = false;
   has_max_ = false;
+  zero_offset_ = 0.0f;
+  max_turns_ = 0.0f;
 
   turns_base_ = 0;
   have_last_ = false;
