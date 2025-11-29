@@ -149,7 +149,7 @@ turns_unwrapped_ = turns_base + (raw / RAW_PER_TURN);
   if (turns_sensor_) turns_sensor_->publish_state(total);
 
   if (percent_sensor_ && has_max_) {
-    float pct = (total / max_turns_) * 100;
+    float pct = (1.0f - abs(total / max_turns_)) * 100.0f;
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
     percent_sensor_->publish_state(pct);
@@ -243,6 +243,7 @@ void St3215Servo::set_zero() {
 void St3215Servo::set_max() {
   if (!has_zero_) return;
   max_turns_ = turns_unwrapped_ - zero_offset_;
+  zero_offset_ = turns_unwrapped_;   // <- přenastavíme NULU na horní polohu
   has_max_ = true;
   ESP_LOGI(TAG, "MAX SET = %.2f", max_turns_);
 }
