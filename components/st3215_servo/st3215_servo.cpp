@@ -104,6 +104,13 @@ void St3215Servo::setup() {
   }
 }
 
+
+// ================= CONFIG =================
+void St3215Servo::dump_config() {
+  ESP_LOGCONFIG(TAG, "ST3215 Servo ID=%u", servo_id_);
+}
+
+
 // ================= UPDATE =================
 void St3215Servo::update() {
   std::vector<uint8_t> pos;
