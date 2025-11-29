@@ -221,65 +221,76 @@ void St3215Servo::start_calibration() {
 // ===== POTVRZENÍ KALIBRACE =====
 void St3215Servo::confirm_calibration_step() {
 
-  if (!calibration_active_) return;
+  if (!calibration_active_) {
+    ESP_LOGW(TAG, "Kalibrace: potvrzení bez aktivní kalibrace – ignoruji");
+    return;
+  }
+
+  // aktuální „soft“ multiturn pozice
+  float current = turns_unwrapped_;
 
   // ===== HORNÍ POZICE =====
   if (calib_state_ == CALIB_WAIT_TOP) {
 
-    // uložit aktuální pozici jako absolutní nulu
-    zero_offset_ = turns_unwrapped_;
-
-    // reset soft multiturn čítače
-    turns_unwrapped_ = 0;
-    turns_base_ = 0;
-    last_raw_ = 0;
-    have_last_ = false;
-
+    // uložit aktuální pozici jako horní referenci
+    zero_offset_ = current;
     has_zero_ = true;
 
-    // publikuj 100 % a 0 otáček
-    if (turns_sensor_)   turns_sensor_->publish_state(0);
-    if (percent_sensor_) percent_sensor_->publish_state(100);
+    // publikujeme 0 otáček a 100 %
+    if (turns_sensor_ != nullptr)
+      turns_sensor_->publish_state(0.0f);
+    if (percent_sensor_ != nullptr)
+      percent_sensor_->publish_state(100.0f);
 
-    ESP_LOGI(TAG, "TOP SET = 0 TURNS");
+    ESP_LOGI(TAG, "Kalibrace TOP: zero_offset = %.3f", zero_offset_);
 
     update_calib_state_(CALIB_WAIT_BOTTOM);
-    ESP_LOGI(TAG, "Najeď na SPODNÍ polohu a potvrď");
+    ESP_LOGI(TAG, "Kalibrace: najeď na SPODNÍ polohu a potvrď");
     return;
   }
 
   // ===== SPODNÍ POZICE =====
   if (calib_state_ == CALIB_WAIT_BOTTOM) {
 
-    float diff = fabsf(turns_unwrapped_);
-
-    if (diff < 0.3f) {
-      ESP_LOGW(TAG, "Kalibrace chyba: malý rozsah pohybu");
+    if (!has_zero_) {
+      ESP_LOGW(TAG, "Kalibrace: spodní poloha bez horní – ruším kalibraci");
+      calibration_active_ = false;
+      update_calib_state_(CALIB_ERROR);
       return;
     }
 
-    max_turns_ = diff;
+    float diff = current - zero_offset_;
+    float span = fabsf(diff);  // celkový rozsah v otáčkách
+
+    if (span < 0.3f) {
+      ESP_LOGW(TAG, "Kalibrace chyba: malý rozsah pohybu (%.3f otáček)", span);
+      calibration_active_ = false;
+      update_calib_state_(CALIB_ERROR);
+      return;
+    }
+
+    max_turns_ = span;
     has_max_ = true;
 
-    // reset multiturn
-    turns_unwrapped_ = max_turns_;
-    turns_base_ = (int)max_turns_;
-    last_raw_ = 0;
-    have_last_ = false;
-
-    if (turns_sensor_)   turns_sensor_->publish_state(max_turns_);
-    if (percent_sensor_) percent_sensor_->publish_state(0);
+    // publikujeme plný rozsah a 0 %
+    if (turns_sensor_ != nullptr)
+      turns_sensor_->publish_state(max_turns_);
+    if (percent_sensor_ != nullptr)
+      percent_sensor_->publish_state(0.0f);
 
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
 
-    ESP_LOGI(TAG, "SPODNÍ SET = %.2f TURNS", max_turns_);
+    ESP_LOGI(TAG, "Kalibrace BOTTOM: max_turns = %.3f", max_turns_);
+    ESP_LOGI(TAG, "Kalibrace dokončena");
     return;
   }
 
+  // Neočekávaný stav – ukončíme s chybou
+  ESP_LOGW(TAG, "Kalibrace: confirm v neočekávaném stavu %d", (int) calib_state_);
+  calibration_active_ = false;
+  update_calib_state_(CALIB_ERROR);
 }
-  
-
 
 
 void St3215Servo::set_zero() {
