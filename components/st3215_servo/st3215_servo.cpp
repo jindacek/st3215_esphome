@@ -127,6 +127,12 @@ void St3215Servo::update() {
   }
 
   int diff = (int) raw - (int) last_raw_;
+  // Ochrana proti nesmyslnému skoku v enkodéru
+  if (abs(diff) > 3000) {
+    ESP_LOGW("st3215", "RAW glitch ignored: last=%u now=%u", last_raw_, raw);
+    return;
+  }
+
 
   if (diff > 2048) turns_base_--;
   else if (diff < -2048) turns_base_++;
