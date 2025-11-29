@@ -29,7 +29,8 @@ enum CalibState {
   CALIB_IDLE = 0,        // nutná kalibrace
   CALIB_WAIT_TOP = 1,    // najeď na horní
   CALIB_WAIT_BOTTOM = 2, // najeď na spodní
-  CALIB_DONE = 3         // připraveno
+  CALIB_DONE = 3,        // připraveno
+  CALIB_ERROR = 4        // chyba kalibrace
 };
 
 
