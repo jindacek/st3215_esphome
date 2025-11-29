@@ -246,34 +246,37 @@ void St3215Servo::confirm_calibration_step() {
     return;
   }
 
-// ===== SPODNÍ POZICE =====
-if (calib_state_ == CALIB_WAIT_BOTTOM) {
+  // ===== SPODNÍ POZICE =====
+  if (calib_state_ == CALIB_WAIT_BOTTOM) {
 
-  float diff = fabsf(turns_unwrapped_);
+    float diff = fabsf(turns_unwrapped_);
 
-  if (diff < 0.3f) {
-    ESP_LOGW(TAG, "Kalibrace chyba: malý rozsah pohybu");
+    if (diff < 0.3f) {
+      ESP_LOGW(TAG, "Kalibrace chyba: malý rozsah pohybu");
+      return;
+    }
+
+    max_turns_ = diff;
+    has_max_ = true;
+
+    // reset multiturn
+    turns_unwrapped_ = max_turns_;
+    turns_base_ = (int)max_turns_;
+    last_raw_ = 0;
+    have_last_ = false;
+
+    if (turns_sensor_)   turns_sensor_->publish_state(max_turns_);
+    if (percent_sensor_) percent_sensor_->publish_state(0);
+
+    calibration_active_ = false;
+    update_calib_state_(CALIB_DONE);
+
+    ESP_LOGI(TAG, "SPODNÍ SET = %.2f TURNS", max_turns_);
     return;
   }
 
-  max_turns_ = diff;
-  has_max_ = true;
-
-  // RESET multiturn
-  turns_unwrapped_ = max_turns_;
-  turns_base_ = (int)max_turns_;
-  last_raw_ = 0;
-  have_last_ = false;
-
-  if (turns_sensor_)   turns_sensor_->publish_state(max_turns_);
-  if (percent_sensor_) percent_sensor_->publish_state(0);
-
-  calibration_active_ = false;
-  update_calib_state_(CALIB_DONE);
-
-  ESP_LOGI(TAG, "SPODNÍ SET = %.2f TURNS", max_turns_);
-  return;
 }
+  
 
 
 
