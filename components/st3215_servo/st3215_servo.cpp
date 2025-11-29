@@ -18,7 +18,6 @@ void St3215Servo::update_calib_state_(CalibState s) {
   calib_state_ = s;
   if (calib_state_sensor_) {
     calib_state_sensor_->publish_state((int) s);
-    // calib_state_sensor_->publish_state((float) s);
   }
 }
 
@@ -86,31 +85,23 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 init ID=%u", servo_id_);
 
-  // Motor mode
   const uint8_t motor_mode[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x01,0xD5};
   write_array(motor_mode, sizeof(motor_mode));
   flush();
 
-  // Torque ON
   const uint8_t torque_on[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
   write_array(torque_on, sizeof(torque_on));
   flush();
 
   torque_on_ = true;
 
-  // Stav kalibrace
   if (!has_zero_ || !has_max_) {
     update_calib_state_(CALIB_IDLE);
     ESP_LOGI(TAG, "Nutná kalibrace rolety");
   } else {
-    update_calib_state_(CALIB_DONE);   // správný stav „připraveno“
+    update_calib_state_(CALIB_DONE);
     ESP_LOGI(TAG, "Roleta připravena (max_turns=%.2f)", max_turns_);
   }
-}
-
-// ================= CONFIG =================
-void St3215Servo::dump_config() {
-  ESP_LOGCONFIG(TAG, "ST3215 Servo ID=%u", servo_id_);
 }
 
 // ================= UPDATE =================
@@ -120,7 +111,6 @@ void St3215Servo::update() {
 
   uint16_t raw = pos[0] | (pos[1] << 8);
 
-  // -------- soft multiturn unwrap --------
   if (!have_last_) {
     last_raw_ = raw;
     turns_base_ = 0;
@@ -131,51 +121,38 @@ void St3215Servo::update() {
 
   int diff = (int) raw - (int) last_raw_;
 
-  if (diff > 2048) {
-    turns_base_--;
-  } else if (diff < -2048) {
-    turns_base_++;
-  }
+  if (diff > 2048) turns_base_--;
+  else if (diff < -2048) turns_base_++;
 
   last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
-  // -------- výpočty --------
   float angle = (raw / RAW_PER_TURN) * 360.0f;
-  float total = fabsf(turns_unwrapped_ - zero_offset_);  // relativní otáčky od HORNÍ polohy
+  float total = fabsf(turns_unwrapped_ - zero_offset_);
 
-  // ---------- publikování hodnot ----------
-  if (angle_sensor_ != nullptr)
-    angle_sensor_->publish_state(angle);
+  if (angle_sensor_) angle_sensor_->publish_state(angle);
+  if (turns_sensor_) turns_sensor_->publish_state(total);
 
-  if (turns_sensor_ != nullptr)
-    turns_sensor_->publish_state(total);
-
-  if (percent_sensor_ != nullptr && has_zero_ && has_max_) {
+  if (percent_sensor_ && has_zero_ && has_max_) {
     float percent = 100.0f - (total / max_turns_) * 100.0f;
-
     if (percent < 0.0f) percent = 0.0f;
     if (percent > 100.0f) percent = 100.0f;
-
     percent_sensor_->publish_state(percent);
   }
 
-  // SW koncáky (soft endstops)
-  if (has_zero_ && total <= 0.01f) {
-    ESP_LOGI("st3215", "SW KONCÁK: horní – stop");
-    stop();
+  // SW koncáky – se směrem
+  if (moving_) {
+    if (has_zero_ && total <= 0.01f && !moving_cw_) {
+      ESP_LOGI(TAG, "SW KONCÁK: horní – stop");
+      stop();
+    }
+
+    if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_) {
+      ESP_LOGI(TAG, "SW KONCÁK: spodní – stop");
+      stop();
+    }
   }
-
-  if (has_max_ && total >= (max_turns_ - 0.01f)) {
-    ESP_LOGI("st3215", "SW KONCÁK: spodní – stop");
-    stop();
-  }    
-  
-  // SW koncáky – zatím vypnuté, ale uvnitř funkce!
-  // if (has_zero_ && total <= 0) stop();
-  // if (has_max_ && total >= max_turns_) stop();
-}  
-
+}
 
 // ================= TORQUE =================
 void St3215Servo::set_torque(bool on) {
@@ -192,23 +169,25 @@ void St3215Servo::set_torque(bool on) {
 
 // ================= STOP =================
 void St3215Servo::stop() {
+  moving_ = false;
   const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
   write_array(stop_cmd, sizeof(stop_cmd));
-  ESP_LOGW("st3215", "STOP COMMAND CALLED");
+  ESP_LOGW(TAG, "STOP COMMAND CALLED");
   flush();
 }
 
 // ================= ROTATE =================
 void St3215Servo::rotate(bool cw, int speed) {
-  if (speed < 0) speed = -speed;
+  moving_ = true;
+  moving_cw_ = cw;
 
+  if (speed < 0) speed = -speed;
   uint16_t mag = speed;
   if (mag > 3000) mag = 3000;
 
   uint8_t lo = mag & 0xFF;
   uint8_t hi = (mag >> 8) & 0x7F;
-
-  if (!cw) hi |= 0x80;  // CCW bit
+  if (!cw) hi |= 0x80;
 
   std::vector<uint8_t> p = {0x2E, lo, hi};
   send_packet_(servo_id_, 0x03, p);
@@ -222,8 +201,7 @@ void St3215Servo::start_calibration() {
   zero_offset_ = 0.0f;
   max_turns_ = 0.0f;
 
-  turns_base_ = 0;
-  have_last_ = false;
+  // multiturn NEresetujeme
 
   update_calib_state_(CALIB_WAIT_TOP);
   ESP_LOGI(TAG, "Kalibrace zahájena – najeď na HORNÍ polohu");
@@ -237,21 +215,14 @@ void St3215Servo::confirm_calibration_step() {
     return;
   }
 
-  // aktuální „soft“ multiturn pozice
   float current = turns_unwrapped_;
 
-  // ===== HORNÍ POZICE =====
   if (calib_state_ == CALIB_WAIT_TOP) {
-
-    // uložit aktuální pozici jako horní referenci
     zero_offset_ = current;
     has_zero_ = true;
 
-    // publikujeme 0 otáček a 100 %
-    if (turns_sensor_ != nullptr)
-      turns_sensor_->publish_state(0.0f);
-    if (percent_sensor_ != nullptr)
-      percent_sensor_->publish_state(100.0f);
+    if (turns_sensor_) turns_sensor_->publish_state(0.0f);
+    if (percent_sensor_) percent_sensor_->publish_state(100.0f);
 
     ESP_LOGI(TAG, "Kalibrace TOP: zero_offset = %.3f", zero_offset_);
 
@@ -260,21 +231,17 @@ void St3215Servo::confirm_calibration_step() {
     return;
   }
 
-  // ===== SPODNÍ POZICE =====
   if (calib_state_ == CALIB_WAIT_BOTTOM) {
 
     if (!has_zero_) {
-      ESP_LOGW(TAG, "Kalibrace: spodní poloha bez horní – ruším kalibraci");
       calibration_active_ = false;
       update_calib_state_(CALIB_ERROR);
       return;
     }
 
-    float diff = current - zero_offset_;
-    float span = fabsf(diff);  // celkový rozsah v otáčkách
+    float span = fabsf(current - zero_offset_);
 
     if (span < 0.3f) {
-      ESP_LOGW(TAG, "Kalibrace chyba: malý rozsah pohybu (%.3f otáček)", span);
       calibration_active_ = false;
       update_calib_state_(CALIB_ERROR);
       return;
@@ -283,53 +250,34 @@ void St3215Servo::confirm_calibration_step() {
     max_turns_ = span;
     has_max_ = true;
 
-    // publikujeme plný rozsah a 0 %
-    if (turns_sensor_ != nullptr)
-      turns_sensor_->publish_state(max_turns_);
-    if (percent_sensor_ != nullptr)
-      percent_sensor_->publish_state(0.0f);
+    if (turns_sensor_) turns_sensor_->publish_state(max_turns_);
+    if (percent_sensor_) percent_sensor_->publish_state(0.0f);
 
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
 
     ESP_LOGI(TAG, "Kalibrace BOTTOM: max_turns = %.3f", max_turns_);
-    ESP_LOGI(TAG, "Kalibrace dokončena");
     return;
   }
 
-  // Neočekávaný stav – ukončíme s chybou
-  ESP_LOGW(TAG, "Kalibrace: confirm v neočekávaném stavu %d", (int) calib_state_);
   calibration_active_ = false;
   update_calib_state_(CALIB_ERROR);
 }
 
-
 void St3215Servo::set_zero() {
-  // Použij aktuální pozici jako horní referenci
   zero_offset_ = turns_unwrapped_;
   has_zero_ = true;
-
-  ESP_LOGI(TAG, "ZERO SET (zero_offset = %.3f)", zero_offset_);
+  ESP_LOGI(TAG, "ZERO SET (%.3f)", zero_offset_);
 }
 
 void St3215Servo::set_max() {
-  if (!has_zero_) {
-    ESP_LOGW(TAG, "MAX SET ignorován – zero není nastaveno");
-    return;
-  }
-
+  if (!has_zero_) return;
   float span = fabsf(turns_unwrapped_ - zero_offset_);
-  if (span < 0.3f) {
-    ESP_LOGW(TAG, "MAX SET ignorován – malý rozsah (%.3f otáček)", span);
-    return;
-  }
-
+  if (span < 0.3f) return;
   max_turns_ = span;
   has_max_ = true;
-
   ESP_LOGI(TAG, "MAX SET = %.3f", max_turns_);
 }
-
 
 // ================= SWITCH =================
 void St3215Servo::set_torque_switch(St3215TorqueSwitch *s) {
