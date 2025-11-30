@@ -41,7 +41,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
     : PollingComponent(300), uart::UARTDevice(nullptr) {}
 
   St3215Servo(uart::UARTComponent *parent, uint8_t id)
-    : PollingComponent(500), uart::UARTDevice(parent), servo_id_(id) {}
+    : PollingComponent(300), uart::UARTDevice(parent), servo_id_(id) {}
 
   void setup() override;
   void dump_config() override;
