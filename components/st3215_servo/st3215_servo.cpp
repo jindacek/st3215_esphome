@@ -126,7 +126,17 @@ void St3215Servo::setup() {
   flush();
 
   torque_on_ = true;
+
+  // ===== INIT STAVU KALIBRACE =====
+  if (!has_zero_ || !has_max_) {
+    update_calib_state_(CALIB_IDLE);
+    ESP_LOGI(TAG, "Nutná kalibrace rolety");
+  } else {
+    update_calib_state_(CALIB_DONE);
+    ESP_LOGI(TAG, "Roleta připravena (max_turns=%.2f)", max_turns_);
+  }
 }
+
 
 // ================= CONFIG =================
 void St3215Servo::dump_config() {
