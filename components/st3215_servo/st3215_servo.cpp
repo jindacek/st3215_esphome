@@ -50,36 +50,49 @@ void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
 bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
                                   std::vector<uint8_t> &out) {
   send_packet_(id, 0x02, {addr, len});
+
   uint32_t start = millis();
   std::vector<uint8_t> buf;
 
-  while (millis() - start < 40) {
+  while (millis() - start < 50) {
     while (available()) buf.push_back(read());
 
-    if (buf.size() >= 6) {
-      size_t i = 0;
-      while (i + 1 < buf.size() && !(buf[i] == 0xFF && buf[i + 1] == 0xFF)) i++;
-      if (i > 0) buf.erase(buf.begin(), buf.begin() + i);
+    // hledání hlavičky
+    while (buf.size() >= 2 && !(buf[0] == 0xFF && buf[1] == 0xFF))
+      buf.erase(buf.begin());
 
-      if (buf.size() < 4) continue;
-      uint8_t rlen = buf[3];
-      if (buf.size() < (size_t)(rlen + 4)) continue;
+    // minimální velikost rámce
+    if (buf.size() < 6) continue;
 
-      uint8_t chk = buf[rlen + 3];
-      uint8_t calc = checksum_(buf.data(), rlen + 3);
-      if (chk != calc) {
-        buf.clear();
-        continue;
-      }
+    uint8_t rid = buf[2];
+    uint8_t rlen = buf[3];   // délka = CMD + ERR + DATA
+    size_t full_len = rlen + 4;
 
-      if (buf[4] != 0) return false;
-      out.assign(buf.begin() + 5, buf.begin() + 5 + len);
-      return true;
+    if (buf.size() < full_len) continue;
+
+    uint8_t err = buf[4];
+    if (rid != id || err != 0) {
+      buf.erase(buf.begin(), buf.begin() + full_len);
+      continue;
     }
-    delay(1);
+
+    // checksum
+    uint8_t chk = buf[full_len - 1];
+    uint8_t calc = checksum_(buf.data(), full_len - 1);
+    if (chk != calc) {
+      ESP_LOGW(TAG, "Checksum mismatch");
+      buf.erase(buf.begin(), buf.begin() + full_len);
+      continue;
+    }
+
+    out.assign(buf.begin() + 5, buf.begin() + 5 + len);
+    return true;
   }
+
+  ESP_LOGW(TAG, "Timeout reading registers");
   return false;
 }
+
 
 // ================= SETUP =================
 void St3215Servo::setup() {
