@@ -49,38 +49,64 @@ void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
 // ================= READ REGISTERS =================
 bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
                                   std::vector<uint8_t> &out) {
+  // vyčistit RX buffer
+  while (available()) (void) read();
+
   send_packet_(id, 0x02, {addr, len});
 
   uint32_t start = millis();
   std::vector<uint8_t> buf;
+  buf.reserve(32);
 
   while (millis() - start < 50) {
-    while (available()) buf.push_back(read());
+
+    while (available()) {
+      buf.push_back(read());
+
+      // ochrana proti růstu bufferu
+      if (buf.size() > 64)
+        buf.erase(buf.begin(), buf.begin() + (buf.size() - 64));
+    }
 
     // hledání hlavičky
     while (buf.size() >= 2 && !(buf[0] == 0xFF && buf[1] == 0xFF))
       buf.erase(buf.begin());
 
-    // minimální velikost rámce
     if (buf.size() < 6) continue;
 
     uint8_t rid = buf[2];
-    uint8_t rlen = buf[3];   // délka = CMD + ERR + DATA
-    size_t full_len = rlen + 4;
+    uint8_t rlen = buf[3];
 
+    // sanity check délky
+    if (rlen < 2 || rlen > 20) {
+      ESP_LOGW(TAG, "Invalid LEN: %u", rlen);
+      buf.erase(buf.begin());
+      continue;
+    }
+
+    size_t full_len = rlen + 4;
     if (buf.size() < full_len) continue;
 
     uint8_t err = buf[4];
+
+    // kontrola cíle a error flagu
     if (rid != id || err != 0) {
       buf.erase(buf.begin(), buf.begin() + full_len);
       continue;
     }
 
-    // checksum
     uint8_t chk = buf[full_len - 1];
     uint8_t calc = checksum_(buf.data(), full_len - 1);
+
     if (chk != calc) {
       ESP_LOGW(TAG, "Checksum mismatch");
+      buf.erase(buf.begin(), buf.begin() + full_len);
+      continue;
+    }
+
+    uint8_t data_len = rlen - 2;
+    if (data_len < len) {
+      ESP_LOGW(TAG, "Short response: %u < %u", data_len, len);
       buf.erase(buf.begin(), buf.begin() + full_len);
       continue;
     }
@@ -89,7 +115,7 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
     return true;
   }
 
-  ESP_LOGW(TAG, "Timeout reading registers");
+  ESP_LOGW(TAG, "Timeout reading register 0x%02X", addr);
   return false;
 }
 
@@ -132,13 +158,9 @@ void St3215Servo::update() {
 
   uint16_t raw = pos[0] | (pos[1] << 8);
 
-  // 1) odmítnout nesmyslné hodnoty
-  if (raw >= 4096 || raw == 0xFFFF) {
-    ESP_LOGW(TAG, "INVALID RAW ignored: %u", raw);
+  if (raw >= 4096 || raw == 0xFFFF)
     return;
-  }
 
-  // 2) první validní měření
   if (!have_last_) {
     last_raw_ = raw;
     turns_base_ = 0;
@@ -147,17 +169,16 @@ void St3215Servo::update() {
     return;
   }
 
-  // 3) výpočet změny
   int diff = (int) raw - (int) last_raw_;
 
-  // 4) zahazujeme teleporty / chybné čtení
-  if (abs(diff) > 2500) {
-    ESP_LOGW(TAG, "RAW jump ignored: last=%u now=%u diff=%d",
+  // tvrdé chyby
+  if (abs(diff) > 3800) {
+    ESP_LOGW(TAG, "RAW teleport ignored: last=%u now=%u diff=%d",
              last_raw_, raw, diff);
     return;
   }
 
-  // 5) unwrap multiturn
+  // unwrap multiturn
   if (diff > 2048)
     turns_base_--;
   else if (diff < -2048)
@@ -166,11 +187,9 @@ void St3215Servo::update() {
   last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
-  // 6) převody
   float angle = (raw / RAW_PER_TURN) * 360.0f;
   float total = fabsf(turns_unwrapped_ - zero_offset_);
 
-  // 7) publikování senzorů
   if (angle_sensor_)
     angle_sensor_->publish_state(angle);
 
@@ -179,32 +198,24 @@ void St3215Servo::update() {
 
   if (percent_sensor_ && has_zero_ && has_max_) {
     float percent = 100.0f - (total / max_turns_) * 100.0f;
-
     if (percent < 0.0f) percent = 0.0f;
     if (percent > 100.0f) percent = 100.0f;
-
     percent_sensor_->publish_state(percent);
   }
 
-  // 8) soft koncáky – jen při pohybu
   if (moving_) {
 
-    // horní koncák (CCW)
     if (has_zero_ && total <= 0.01f && !moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: horní – stop");
       stop();
     }
 
-    // spodní koncák (CW)
     if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: spodní – stop");
       stop();
     }
   }
 }
-
-
-
 
 
 // ================= TORQUE =================
@@ -224,12 +235,11 @@ void St3215Servo::set_torque(bool on) {
 void St3215Servo::stop() {
   const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
   write_array(stop_cmd, sizeof(stop_cmd));
-  ESP_LOGW("st3215", "STOP COMMAND CALLED");
+  ESP_LOGW(TAG, "STOP COMMAND CALLED");
   flush();
 
   moving_ = false;
 
-  // vypnout oba switche v HA (jsme zastaveni)
   if (open_switch_)  open_switch_->publish_state(false);
   if (close_switch_) close_switch_->publish_state(false);
 }
@@ -259,13 +269,10 @@ void St3215Servo::start_calibration() {
   zero_offset_ = 0.0f;
   max_turns_ = 0.0f;
 
-  // multiturn NEresetujeme
-
   update_calib_state_(CALIB_WAIT_TOP);
   ESP_LOGI(TAG, "Kalibrace zahájena – najeď na HORNÍ polohu");
 }
 
-// ===== POTVRZENÍ KALIBRACE =====
 void St3215Servo::confirm_calibration_step() {
 
   if (!calibration_active_) {
