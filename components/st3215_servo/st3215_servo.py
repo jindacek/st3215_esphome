@@ -63,3 +63,6 @@ async def to_code(config):
         await cg.register_component(sw, config[CONF_TORQUE_SWITCH])
         cg.add(sw.set_parent(var))
         cg.add(var.set_torque_switch(sw))
+        cg.add(var.set_open_switch(open_switch))
+        cg.add(var.set_close_switch(close_switch))
+        
