@@ -139,34 +139,6 @@ void St3215Servo::update() {
     return;
   }
 
-    // OCHRANA PROTI NESMYSLNÉ HODNOTĚ RAW
-    if (raw > 4095) {
-      ESP_LOGW("st3215", "RAW out of range: %u (reset unwrap)", raw);
-      have_last_ = false;
-      return;
-    }
-    
-    int diff = (int) raw - (int) last_raw_;
-    
-    // filtrování skoku – ALE dovolíme rekonstrukci po více chybách
-    static uint8_t glitch_counter = 0;
-    
-    if (abs(diff) > 3000) {
-      glitch_counter++;
-      ESP_LOGW("st3215", "RAW glitch #%u: last=%u now=%u", glitch_counter, last_raw_, raw);
-    
-      // po 3 chybách přijmeme nový RAW jako realitu
-      if (glitch_counter >= 3) {
-        ESP_LOGW("st3215", "RAW resync after glitches (accepting new raw)");
-        last_raw_ = raw;
-        glitch_counter = 0;
-      }
-      return;
-    }
-    
-    // validní stav → reset počítadla chyb
-    glitch_counter = 0;
-
 
   if (diff > 2048) turns_base_--;
   else if (diff < -2048) turns_base_++;
