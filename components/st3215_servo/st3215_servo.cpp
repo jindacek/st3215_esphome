@@ -139,7 +139,7 @@ void St3215Servo::update() {
     return;
   }
 
-
+  int diff = (int) raw - (int) last_raw_;
   if (diff > 2048) turns_base_--;
   else if (diff < -2048) turns_base_++;
 
