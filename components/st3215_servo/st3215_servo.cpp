@@ -219,11 +219,16 @@ void St3215Servo::set_torque(bool on) {
 
 // ================= STOP =================
 void St3215Servo::stop() {
-  moving_ = false;
   const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
   write_array(stop_cmd, sizeof(stop_cmd));
-  ESP_LOGW(TAG, "STOP COMMAND CALLED");
+  ESP_LOGW("st3215", "STOP COMMAND CALLED");
   flush();
+
+  moving_ = false;
+
+  // vypnout oba switche v HA (jsme zastaveni)
+  if (open_switch_)  open_switch_->publish_state(false);
+  if (close_switch_) close_switch_->publish_state(false);
 }
 
 // ================= ROTATE =================
