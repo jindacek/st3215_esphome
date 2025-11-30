@@ -71,6 +71,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
   // Switch
   void set_torque_switch(St3215TorqueSwitch *s);
+  void set_open_switch(switch_::Switch *s) { open_switch_ = s; }
+  void set_close_switch(switch_::Switch *s) { close_switch_ = s; }
+
 
  protected:
   uint8_t servo_id_{1};
@@ -89,6 +92,10 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   // Kalibrace
   bool calibration_active_{false};
   CalibState calib_state_{CALIB_IDLE};
+
+  // Switche
+  switch_::Switch *open_switch_{nullptr};
+  switch_::Switch *close_switch_{nullptr};
 
   // Sensory
   sensor::Sensor *angle_sensor_{nullptr};
