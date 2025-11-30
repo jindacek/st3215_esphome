@@ -203,18 +203,19 @@ void St3215Servo::update() {
     percent_sensor_->publish_state(percent);
   }
 
+  
+  static constexpr float STOP_EPS = 0.05f;  // ~1/20 otáčky, klidně uprav
+  
   if (moving_) {
-
+  
     // ===== HORNÍ LIMIT (100 %) =====
-    // nahoře = total ≈ 0
-    if (has_zero_ && total <= 0.01f && moving_cw_ == false) {
+    if (has_zero_ && total <= STOP_EPS && !moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
       stop();
     }
-
+  
     // ===== SPODNÍ LIMIT (0 %) =====
-    // dole = total ≈ max_turns_
-    if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_ == true) {
+    if (has_max_ && total >= (max_turns_ - STOP_EPS) && moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP");
       stop();
     }
