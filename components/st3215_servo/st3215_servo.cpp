@@ -132,45 +132,43 @@ void St3215Servo::update() {
 
   uint16_t raw = pos[0] | (pos[1] << 8);
 
-  // 1) odmítnout zjevně nesmyslné hodnoty z UARTu
-  // (65532 apod. – jen zalogujeme a přeskočíme ten cyklus)
+  // 1) odmítnout nesmyslné hodnoty
   if (raw >= 4096 || raw == 0xFFFF) {
     ESP_LOGW(TAG, "INVALID RAW ignored: %u", raw);
     return;
   }
 
-  // 2) první validní měření – inicializace unwrap logiky
+  // 2) první validní měření
   if (!have_last_) {
-    last_raw_        = raw;
-    turns_base_      = 0;
+    last_raw_ = raw;
+    turns_base_ = 0;
     turns_unwrapped_ = raw / RAW_PER_TURN;
-    have_last_       = true;
+    have_last_ = true;
     return;
   }
 
-  // 3) výpočet rozdílu (pohyb mezi dvěma měřeními)
+  // 3) výpočet změny
   int diff = (int) raw - (int) last_raw_;
 
-  // 4) ochrana proti brutálním skokům (teleporty z rušení)
+  // 4) zahazujeme teleporty / chybné čtení
   if (abs(diff) > 2500) {
     ESP_LOGW(TAG, "RAW jump ignored: last=%u now=%u diff=%d",
              last_raw_, raw, diff);
-    // jen ignorujeme tohle jedno měření, unwrap necháme podle last_raw_
     return;
   }
 
-  // 5) soft multiturn unwrap přes hranici 0/4095
+  // 5) unwrap multiturn
   if (diff > 2048)
     turns_base_--;
   else if (diff < -2048)
     turns_base_++;
 
-  last_raw_        = raw;
+  last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
-  // 6) převody na úhel a "otáčky od horní polohy"
+  // 6) převody
   float angle = (raw / RAW_PER_TURN) * 360.0f;
-  float total = fabsf(turns_unwrapped_ - zero_offset_);  // relativní otáčky od HORNÍ polohy
+  float total = fabsf(turns_unwrapped_ - zero_offset_);
 
   // 7) publikování senzorů
   if (angle_sensor_)
@@ -188,21 +186,23 @@ void St3215Servo::update() {
     percent_sensor_->publish_state(percent);
   }
 
-  // 8) soft koncáky – fungují jen když "oficiálně" jedeme (moving_ = true)
+  // 8) soft koncáky – jen při pohybu
   if (moving_) {
-    // horní koncák (CCW – nahoru)
+
+    // horní koncák (CCW)
     if (has_zero_ && total <= 0.01f && !moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: horní – stop");
       stop();
     }
 
-    // spodní koncák (CW – dolů)
+    // spodní koncák (CW)
     if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: spodní – stop");
       stop();
     }
   }
 }
+
 
 
 
