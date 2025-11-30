@@ -38,7 +38,7 @@ enum CalibState {
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
  public:
   St3215Servo()
-    : PollingComponent(500), uart::UARTDevice(nullptr) {}
+    : PollingComponent(300), uart::UARTDevice(nullptr) {}
 
   St3215Servo(uart::UARTComponent *parent, uint8_t id)
     : PollingComponent(500), uart::UARTDevice(parent), servo_id_(id) {}
