@@ -127,10 +127,18 @@ void St3215Servo::dump_config() {
 // ================= UPDATE =================
 void St3215Servo::update() {
   std::vector<uint8_t> pos;
-  if (!read_registers_(servo_id_, 0x38, 2, pos)) return;
+  if (!read_registers_(servo_id_, 0x38, 2, pos))
+    return;
 
   uint16_t raw = pos[0] | (pos[1] << 8);
 
+  // 1) odmítnout nesmyslné hodnoty
+  if (raw >= 4096 || raw == 0xFFFF) {
+    ESP_LOGW(TAG, "INVALID RAW ignored: %u", raw);
+    return;
+  }
+
+  // 2) první validní měření
   if (!have_last_) {
     last_raw_ = raw;
     turns_base_ = 0;
@@ -139,39 +147,62 @@ void St3215Servo::update() {
     return;
   }
 
+  // 3) výpočet změny
   int diff = (int) raw - (int) last_raw_;
-  if (diff > 2048) turns_base_--;
-  else if (diff < -2048) turns_base_++;
+
+  // 4) zahazujeme teleporty / chybné čtení
+  if (abs(diff) > 2500) {
+    ESP_LOGW(TAG, "RAW jump ignored: last=%u now=%u diff=%d",
+             last_raw_, raw, diff);
+    return;
+  }
+
+  // 5) unwrap multiturn
+  if (diff > 2048)
+    turns_base_--;
+  else if (diff < -2048)
+    turns_base_++;
 
   last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
+  // 6) převody
   float angle = (raw / RAW_PER_TURN) * 360.0f;
   float total = fabsf(turns_unwrapped_ - zero_offset_);
 
-  if (angle_sensor_) angle_sensor_->publish_state(angle);
-  if (turns_sensor_) turns_sensor_->publish_state(total);
+  // 7) publikování senzorů
+  if (angle_sensor_)
+    angle_sensor_->publish_state(angle);
+
+  if (turns_sensor_)
+    turns_sensor_->publish_state(total);
 
   if (percent_sensor_ && has_zero_ && has_max_) {
     float percent = 100.0f - (total / max_turns_) * 100.0f;
+
     if (percent < 0.0f) percent = 0.0f;
     if (percent > 100.0f) percent = 100.0f;
+
     percent_sensor_->publish_state(percent);
   }
 
-  // SW koncáky – se směrem
+  // 8) soft koncáky – jen při pohybu
   if (moving_) {
+
+    // horní koncák (CCW)
     if (has_zero_ && total <= 0.01f && !moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: horní – stop");
       stop();
     }
 
+    // spodní koncák (CW)
     if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: spodní – stop");
       stop();
     }
   }
 }
+
 
 // ================= TORQUE =================
 void St3215Servo::set_torque(bool on) {
