@@ -205,15 +205,17 @@ void St3215Servo::update() {
 
   if (moving_) {
 
-    // ===== DOLNÍ KONEC (0 %) =====
+    // ===== HORNÍ LIMIT (100 %) =====
+    // nahoře = total ≈ 0
     if (has_zero_ && total <= 0.01f && moving_cw_ == false) {
-      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP");
+      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
       stop();
     }
 
-    // ===== HORNÍ KONEC (100 %) =====
+    // ===== SPODNÍ LIMIT (0 %) =====
+    // dole = total ≈ max_turns_
     if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_ == true) {
-      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
+      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP");
       stop();
     }
   }
