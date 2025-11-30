@@ -203,7 +203,7 @@ void St3215Servo::update() {
     percent_sensor_->publish_state(percent);
   }
 
-  
+  // HYSTERÉZE / TOLERANCE KONCOVÉHO BODU
   static constexpr float STOP_EPS = 0.05f;  // ~1/20 otáčky, klidně uprav
   
   if (moving_) {
