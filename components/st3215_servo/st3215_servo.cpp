@@ -126,87 +126,84 @@ void St3215Servo::dump_config() {
 
 // ================= UPDATE =================
 void St3215Servo::update() {
-
   std::vector<uint8_t> pos;
-  if (!read_registers_(servo_id_, 0x38, 2, pos)) return;
+  if (!read_registers_(servo_id_, 0x38, 2, pos))
+    return;
 
   uint16_t raw = pos[0] | (pos[1] << 8);
 
-  // ----- sanity check -----
-  if (raw > 4095) {
+  // 1) odmítnout zjevně nesmyslné hodnoty z UARTu
+  // (65532 apod. – jen zalogujeme a přeskočíme ten cyklus)
+  if (raw >= 4096 || raw == 0xFFFF) {
     ESP_LOGW(TAG, "INVALID RAW ignored: %u", raw);
-
-    // KDYŽ JE POHYB A ČTEME NESMYSL → ZABRZDI (ochrana koncáku)
-    if (moving_) {
-      ESP_LOGW(TAG, "INVALID RAW while moving → STOP for safety");
-      stop();
-    }
     return;
   }
 
-  // ----- první čtení -----
+  // 2) první validní měření – inicializace unwrap logiky
   if (!have_last_) {
-    last_raw_ = raw;
-    turns_base_ = 0;
+    last_raw_        = raw;
+    turns_base_      = 0;
     turns_unwrapped_ = raw / RAW_PER_TURN;
-    have_last_ = true;
+    have_last_       = true;
     return;
   }
 
-  int diff = (int)raw - (int)last_raw_;
+  // 3) výpočet rozdílu (pohyb mezi dvěma měřeními)
+  int diff = (int) raw - (int) last_raw_;
 
-  // ----- glitch filtr -----
-  if (abs(diff) > 3000) {
-    ESP_LOGW(TAG, "RAW jump ignored: last=%u now=%u diff=%d", last_raw_, raw, diff);
-
-    // pokud jedeme ke konci a RAW blbne → STOP
-    if (moving_) {
-      if (moving_cw_ && has_max_) {
-        ESP_LOGW(TAG, "Glitch while closing → STOP");
-        stop();
-      }
-      if (!moving_cw_ && has_zero_) {
-        ESP_LOGW(TAG, "Glitch while opening → STOP");
-        stop();
-      }
-    }
+  // 4) ochrana proti brutálním skokům (teleporty z rušení)
+  if (abs(diff) > 2500) {
+    ESP_LOGW(TAG, "RAW jump ignored: last=%u now=%u diff=%d",
+             last_raw_, raw, diff);
+    // jen ignorujeme tohle jedno měření, unwrap necháme podle last_raw_
     return;
   }
 
-  // ----- správný unwrap -----
-  if (diff > 2048) turns_base_--;
-  else if (diff < -2048) turns_base_++;
+  // 5) soft multiturn unwrap přes hranici 0/4095
+  if (diff > 2048)
+    turns_base_--;
+  else if (diff < -2048)
+    turns_base_++;
 
-  last_raw_ = raw;
+  last_raw_        = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
 
+  // 6) převody na úhel a "otáčky od horní polohy"
   float angle = (raw / RAW_PER_TURN) * 360.0f;
-  float total = fabsf(turns_unwrapped_ - zero_offset_);
+  float total = fabsf(turns_unwrapped_ - zero_offset_);  // relativní otáčky od HORNÍ polohy
 
-  // ----- publish -----
-  if (angle_sensor_) angle_sensor_->publish_state(angle);
-  if (turns_sensor_) turns_sensor_->publish_state(total);
+  // 7) publikování senzorů
+  if (angle_sensor_)
+    angle_sensor_->publish_state(angle);
+
+  if (turns_sensor_)
+    turns_sensor_->publish_state(total);
 
   if (percent_sensor_ && has_zero_ && has_max_) {
     float percent = 100.0f - (total / max_turns_) * 100.0f;
-    if (percent < 0) percent = 0;
-    if (percent > 100) percent = 100;
+
+    if (percent < 0.0f) percent = 0.0f;
+    if (percent > 100.0f) percent = 100.0f;
+
     percent_sensor_->publish_state(percent);
   }
 
-  // ----- SW koncáky pouze podle směru -----
+  // 8) soft koncáky – fungují jen když "oficiálně" jedeme (moving_ = true)
   if (moving_) {
-    if (!moving_cw_ && has_zero_ && total <= 0.02f) {
+    // horní koncák (CCW – nahoru)
+    if (has_zero_ && total <= 0.01f && !moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: horní – stop");
       stop();
     }
 
-    if (moving_cw_ && has_max_ && total >= (max_turns_ - 0.02f)) {
+    // spodní koncák (CW – dolů)
+    if (has_max_ && total >= (max_turns_ - 0.01f) && moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: spodní – stop");
       stop();
     }
   }
 }
+
 
 
 
