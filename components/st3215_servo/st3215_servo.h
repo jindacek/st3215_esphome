@@ -74,7 +74,6 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_open_switch(switch_::Switch *s) { open_switch_ = s; }
   void set_close_switch(switch_::Switch *s) { close_switch_ = s; }
 
-
  protected:
   uint8_t servo_id_{1};
   bool torque_on_{true};
@@ -108,6 +107,11 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   // Stav pohybu pro SW koncáky
   bool moving_{false};
   bool moving_cw_{false};
+
+  // ===== RAMP ENGINE =====
+  int target_speed_{0};
+  int current_speed_{0};
+  uint32_t last_ramp_update_{0};
 
   // Low level comm
   uint8_t checksum_(const uint8_t *data, size_t len);
