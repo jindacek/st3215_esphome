@@ -38,10 +38,10 @@ enum CalibState {
 class St3215Servo : public PollingComponent, public uart::UARTDevice {
  public:
   St3215Servo()
-    : PollingComponent(100), uart::UARTDevice(nullptr) {}
+    : PollingComponent(200), uart::UARTDevice(nullptr) {}
 
   St3215Servo(uart::UARTComponent *parent, uint8_t id)
-    : PollingComponent(100), uart::UARTDevice(parent), servo_id_(id) {}
+    : PollingComponent(200), uart::UARTDevice(parent), servo_id_(id) {}
 
   void setup() override;
   void dump_config() override;
