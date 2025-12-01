@@ -196,16 +196,24 @@ void St3215Servo::update() {
   if (percent_sensor_ && has_zero_ && has_max_) {
     float pct = 100.0f - (total / max_turns_) * 100.0f;
   
-    // Fyzikální clamp
+    // fyzikální clamp
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 100.0f) pct = 100.0f;
   
-    // Kosmetika pro uživatele:
-    // cokoliv pod 2 % = 0 %, nad 98 % = 100 %
-    if (pct < 1.0f) pct = 0.0f;
-    if (pct > 99.0f) pct = 100.0f;
+    // kosmetika pro HA – žádné 1 % / 99 %
+    if (pct < 2.0f) pct = 0.0f;
+    if (pct > 98.0f) pct = 100.0f;
   
     percent_sensor_->publish_state(pct);
+  
+    // ===== AUTO STOP NA CÍLI (POSITION MODE) =====
+    if (position_mode_) {
+      if (fabs(pct - target_percent_) < 1.5f) {
+        ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
+        stop();
+        position_mode_ = false;
+      }
+    }
   }
 
   // ===== RAMP ENGINE =====
@@ -290,6 +298,34 @@ void St3215Servo::update() {
   }
 }
 
+// ================= MOVE TO PORCENT =================
+void St3215Servo::move_to_percent(float pct) {
+  if (!has_zero_ || !has_max_)
+    return;
+
+  if (pct < 0.0f) pct = 0.0f;
+  if (pct > 100.0f) pct = 100.0f;
+
+  target_percent_ = pct;
+  position_mode_ = true;
+
+  float current = (percent_sensor_) ? percent_sensor_->state : 0.0f;
+
+  if (fabs(current - pct) < 1.0f) {
+    stop();
+    position_mode_ = false;
+    return;
+  }
+
+  if (pct > current) {
+    // otevřít (CCW)
+    rotate(false, SPEED_MAX);
+  } else {
+    // zavřít (CW)
+    rotate(true, SPEED_MAX);
+  }
+}
+
 // ================= TORQUE =================
 void St3215Servo::set_torque(bool on) {
   const uint8_t torque_on[]  = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
@@ -304,6 +340,7 @@ void St3215Servo::set_torque(bool on) {
 // ================= STOP =================
 void St3215Servo::stop() {
   target_speed_ = 0;
+  position_mode_ = false;
   const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
   write_array(stop_cmd, sizeof(stop_cmd));
   flush();
