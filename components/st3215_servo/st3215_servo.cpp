@@ -193,11 +193,18 @@ void St3215Servo::update() {
 
   if (angle_sensor_) angle_sensor_->publish_state(angle);
   if (turns_sensor_) turns_sensor_->publish_state(total);
-
   if (percent_sensor_ && has_zero_ && has_max_) {
     float pct = 100.0f - (total / max_turns_) * 100.0f;
-    if (pct < 0) pct = 0;
-    if (pct > 100) pct = 100;
+  
+    // Fyzikální clamp
+    if (pct < 0.0f) pct = 0.0f;
+    if (pct > 100.0f) pct = 100.0f;
+  
+    // Kosmetika pro uživatele:
+    // cokoliv pod 2 % = 0 %, nad 98 % = 100 %
+    if (pct < 1.0f) pct = 0.0f;
+    if (pct > 99.0f) pct = 100.0f;
+  
     percent_sensor_->publish_state(pct);
   }
 
