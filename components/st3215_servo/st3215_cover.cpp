@@ -17,63 +17,55 @@ St3215Cover::St3215Cover(St3215Servo *servo,
 // COVER vlastnosti
 cover::CoverTraits St3215Cover::get_traits() {
   auto traits = cover::CoverTraits();
-
   traits.set_is_assumed_state(true);
-  traits.set_supports_position(false);
+  traits.set_supports_position(true);   // slider povolen
   traits.set_supports_stop(true);
-
   return traits;
 }
 
-// Povely z Home Assistant (NOVÉ API)
+// Povely z Home Assistant (ESPHome 2025.10 kompatibilní)
 void St3215Cover::control(const cover::CoverCall &call) {
 
-  if (servo_ == nullptr) {
-    ESP_LOGW(TAG, "Servo pointer is null");
-    return;
-  }
+  if (!servo_) return;
 
-  auto op = call.get_operation();
-
-  // STOP
-  if (op == cover::COVER_OPERATION_STOP) {
+  // STOP → žádná požadovaná pozice
+  if (!call.get_position().has_value()) {
     ESP_LOGI(TAG, "STOP");
     servo_->stop();
-    moving_ = false;
     return;
   }
 
-  // OPEN
-  if (op == cover::COVER_OPERATION_OPEN) {
+  // CÍLOVÁ POZICE (0.0 – 1.0)
+  float target = *call.get_position();
+  float percent = target * 100.0f;
+
+  // Aktuální pozici zatím nečteme – assumed mode
+  ESP_LOGI(TAG, "COVER set position %.1f %%", percent);
+
+  // 1.0 = otevřít
+  if (target >= 0.99f) {
+
     int speed = 1000;
     if (open_speed_ && open_speed_->has_state())
       speed = static_cast<int>(open_speed_->state);
 
-    ESP_LOGI(TAG, "OPEN (speed=%d)", speed);
-
-    // roleta DOLŮ (CW)
     servo_->rotate(true, speed);
-    moving_ = true;
-    direction_open_ = true;
     return;
   }
 
-  // CLOSE
-  if (op == cover::COVER_OPERATION_CLOSE) {
+  // 0.0 = zavřít
+  if (target <= 0.01f) {
+
     int speed = 1000;
     if (close_speed_ && close_speed_->has_state())
       speed = static_cast<int>(close_speed_->state);
 
-    ESP_LOGI(TAG, "CLOSE (speed=%d)", speed);
-
-    // roleta NAHORU (CCW)
     servo_->rotate(false, speed);
-    moving_ = true;
-    direction_open_ = false;
     return;
   }
 
-  ESP_LOGW(TAG, "Unknown cover operation");
+  // mezi – jen log, později můžeme dodělat přesné dojetí
+  ESP_LOGI(TAG, "Middle position requested – not implemented yet");
 }
 
 }  // namespace st3215_servo
