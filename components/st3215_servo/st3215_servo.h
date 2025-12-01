@@ -113,6 +113,11 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   int current_speed_{0};
   uint32_t last_ramp_update_{0};
 
+  // ===== ENCODER FAULT =====
+  uint8_t encoder_fail_count_{0};
+  bool encoder_fault_{false};
+  static constexpr uint8_t ENCODER_FAIL_LIMIT = 3;
+
   // Low level comm
   uint8_t checksum_(const uint8_t *data, size_t len);
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
