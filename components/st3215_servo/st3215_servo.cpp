@@ -12,7 +12,7 @@ static constexpr int   SPEED_MAX     = 2500;
 static constexpr int   SPEED_MIN     = 100;
 static constexpr int   ACCEL_RATE    = 30;     // změna rychlosti za krok
 static constexpr uint32_t RAMP_DT_MS = 30;     // perioda rampy
-static constexpr float DECEL_ZONE    = 0.40f;  // kdy začít brzdit
+static constexpr float DECEL_ZONE    = 0.40f;  // kdy začít brzdit (otáčky před koncem)
 static constexpr float STOP_EPS      = 0.05f;  // hystereze koncáku
 
 // ================= TORQUE SWITCH =================
@@ -191,21 +191,50 @@ void St3215Servo::update() {
   if (now - last_ramp_update_ >= RAMP_DT_MS) {
     last_ramp_update_ = now;
 
+    // statická proměnná pro prediktivní brzdění (pamatuje si předchozí dist)
+    static float last_dist = 0.0f;
+
+    // vypočítat vzdálenost ke konci
+    float dist = 0.0f;
+    if (has_zero_ && has_max_) {
+      // dolů (CW) → směrem k max_turns_
+      // nahoru (CCW) → směrem k nule
+      dist = moving_cw_
+          ? fabsf(max_turns_ - total)   // spodní konec
+          : total;                      // horní konec
+    }
+
+    // rychlost přibližování (kladná, když se blížíme k dorazu)
+    float dist_delta = last_dist - dist;
+    last_dist = dist;
+
+    // základní cílová rychlost vychází z uživatelem chtěné rychlosti
     int effective = target_speed_;
 
     if (has_zero_ && has_max_) {
-      // float dist = moving_cw_ ? (max_turns_ - total) : total;
-      float dist = moving_cw_
-          ? fabsf(max_turns_ - total)   // dolní konec
-          : total;                      // horní konec (0)      
+      // 1) Základní brzdění podle vzdálenosti (S-křivka)
       if (dist < DECEL_ZONE) {
         float k = dist / DECEL_ZONE;
         if (k < 0) k = 0;
         if (k > 1) k = 1;
-        effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * (k * k * k));
+
+        float smooth = k * k * k;  // hezky měkké brzdění
+        effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * smooth);
+      }
+
+      // 2) Prediktivní brzdění – když se blížíme moc rychle, uber ještě víc
+      // dist_delta ~ kolik otáček za krok rampy ujedeš směrem k dorazu
+      float predictive_brake = dist_delta * 2.2f;  // koeficient pro doladění
+
+      if (predictive_brake > 0.01f) {
+        // čím rychleji se blížíš, tím víc strhneme rychlost dolů
+        effective -= (int)(predictive_brake * 800.0f);
+        if (effective < SPEED_MIN)
+          effective = SPEED_MIN;
       }
     }
 
+    // Aplikace rampy (akcelerace/decelerace rychlosti)
     if (current_speed_ < effective) {
       current_speed_ += ACCEL_RATE;
       if (current_speed_ > effective) current_speed_ = effective;
@@ -214,6 +243,7 @@ void St3215Servo::update() {
       if (current_speed_ < effective) current_speed_ = effective;
     }
 
+    // Odeslání nové rychlosti do serva
     if (moving_ && current_speed_ >= SPEED_MIN) {
       uint8_t lo = current_speed_ & 0xFF;
       uint8_t hi = (current_speed_ >> 8) & 0x7F;
