@@ -74,6 +74,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_open_switch(switch_::Switch *s) { open_switch_ = s; }
   void set_close_switch(switch_::Switch *s) { close_switch_ = s; }
 
+  // ===== POSITION MODE (AUTOPILOT) =====
+  void move_to_percent(float pct);
+
  protected:
   uint8_t servo_id_{1};
   bool torque_on_{true};
@@ -112,6 +115,10 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   int target_speed_{0};
   int current_speed_{0};
   uint32_t last_ramp_update_{0};
+
+  // ===== POSITION MODE =====
+  float target_percent_{-1.0f};   // -1 = žádný cíl
+  bool position_mode_{false};     // aktivní řízení na cíl
 
   // ===== ENCODER FAULT =====
   uint8_t encoder_fail_count_{0};
