@@ -146,7 +146,22 @@ void St3215Servo::dump_config() {
 // ================= UPDATE =================
 void St3215Servo::update() {
   std::vector<uint8_t> pos;
-  if (!read_registers_(servo_id_, 0x38, 2, pos))
+  if (!read_registers_(servo_id_, 0x38, 2, pos)) {
+    encoder_fail_count_++;
+  
+    if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
+      ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
+      stop();                  // okamžitě zastavit
+      encoder_fault_ = true;   // už nic dalšího nedovolíme
+    }
+    return;
+  }
+  
+  // pokud se čtení povedlo → reset chyb
+  encoder_fail_count_ = 0;
+  
+  // pokud už jednou došlo k poruše, dál nejedeme
+  if (encoder_fault_)
     return;
 
   uint16_t raw = pos[0] | (pos[1] << 8);
