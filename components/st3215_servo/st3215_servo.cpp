@@ -12,7 +12,7 @@ static constexpr int   SPEED_MAX     = 2500;
 static constexpr int   SPEED_MIN     = 100;
 static constexpr int   ACCEL_RATE    = 30;     // změna rychlosti za krok
 static constexpr uint32_t RAMP_DT_MS = 30;     // perioda rampy
-static constexpr float DECEL_ZONE    = 0.40f;  // kdy začít brzdit (otáčky před koncem)
+static constexpr float DECEL_ZONE    = 0.70f;  // kdy začít brzdit (otáčky před koncem)
 static constexpr float STOP_EPS      = 0.05f;  // hystereze koncáku
 
 // ================= TORQUE SWITCH =================
@@ -224,7 +224,7 @@ void St3215Servo::update() {
 
       // 2) Prediktivní brzdění – když se blížíme moc rychle, uber ještě víc
       // dist_delta ~ kolik otáček za krok rampy ujedeš směrem k dorazu
-      float predictive_brake = dist_delta * 2.2f;  // koeficient pro doladění
+      float predictive_brake = dist_delta * 1.4f;  // koeficient pro doladění
 
       if (predictive_brake > 0.01f) {
         // čím rychleji se blížíš, tím víc strhneme rychlost dolů
