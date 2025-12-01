@@ -12,8 +12,8 @@ static constexpr int   SPEED_MAX     = 2500;
 static constexpr int   SPEED_MIN     = 100;
 static constexpr int   ACCEL_RATE    = 25;     // změna rychlosti za krok
 static constexpr uint32_t RAMP_DT_MS = 30;     // perioda rampy
-static constexpr float DECEL_ZONE    = 0.70f;  // kdy začít brzdit (otáčky před koncem)
-static constexpr float STOP_EPS      = 0.05f;  // hystereze koncáku
+static constexpr float DECEL_ZONE    = 1.3f;  // kdy začít brzdit (otáčky před koncem)
+static constexpr float STOP_EPS      = 0.02f;  // hystereze koncáku
 
 // ================= TORQUE SWITCH =================
 void St3215TorqueSwitch::write_state(bool state) {
