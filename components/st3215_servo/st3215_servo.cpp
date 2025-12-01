@@ -194,7 +194,10 @@ void St3215Servo::update() {
     int effective = target_speed_;
 
     if (has_zero_ && has_max_) {
-      float dist = moving_cw_ ? (max_turns_ - total) : total;
+      // float dist = moving_cw_ ? (max_turns_ - total) : total;
+      float dist = moving_cw_
+          ? fabsf(max_turns_ - total)   // dolní konec
+          : total;                      // horní konec (0)      
       if (dist < DECEL_ZONE) {
         float k = dist / DECEL_ZONE;
         if (k < 0) k = 0;
