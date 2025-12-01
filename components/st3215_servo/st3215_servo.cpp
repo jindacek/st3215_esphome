@@ -208,7 +208,7 @@ void St3215Servo::update() {
   
     // ===== AUTO STOP NA CÍLI (POSITION MODE) =====
     if (position_mode_) {
-      if (fabs(pct - target_percent_) < 1.5f) {
+      if (fabs(pct - target_percent_) < 1.0f) {
         ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
         stop();
         position_mode_ = false;
