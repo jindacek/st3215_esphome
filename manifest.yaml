@@ -15,6 +15,7 @@ dependencies:
       - sensor
       - number
       - text_sensor
+      - cover
     excludes:
       - button
 
