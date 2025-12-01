@@ -199,7 +199,7 @@ void St3215Servo::update() {
         float k = dist / DECEL_ZONE;
         if (k < 0) k = 0;
         if (k > 1) k = 1;
-        effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * k);
+        effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * (k * k * k));
       }
     }
 
