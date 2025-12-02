@@ -151,26 +151,22 @@ void St3215Servo::update() {
   if (!read_registers_(servo_id_, 0x38, 2, pos)) {
     encoder_fail_count_++;
 
-    // po 3 chybách zkus reset UART (max 1× za 2 s)
     if (encoder_fail_count_ >= 3 && millis() - last_recovery_attempt_ > 2000) {
       last_recovery_attempt_ = millis();
       restart_uart();
     }
 
-    // po ENCODER_FAIL_LIMIT chybách → emergency stop
     if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
       ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
-      stop();                  // okamžitě zastavit
-      encoder_fault_ = true;   // už nic dalšího nedovolíme
+      stop();
+      encoder_fault_ = true;
     }
 
-    return;  // bez platných dat dál nepokračuj
+    return;
   }
 
-  // ===== OK: čtení se povedlo =====
   encoder_fail_count_ = 0;
 
-  // pokud už jednou došlo k poruše, dál nejezdíme
   if (encoder_fault_)
     return;
 
@@ -206,29 +202,92 @@ void St3215Servo::update() {
   if (angle_sensor_) angle_sensor_->publish_state(angle);
   if (turns_sensor_) turns_sensor_->publish_state(total);
 
-  if (percent_sensor_ && has_zero_ && has_max_) {
-    float pct = 100.0f - (total / max_turns_) * 100.0f;
+  float pct = -1;
 
-    // fyzikální clamp
+  if (percent_sensor_ && has_zero_ && has_max_) {
+    pct = 100.0f - (total / max_turns_) * 100.0f;
+
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 100.0f) pct = 100.0f;
-
-    // kosmetika pro HA – žádné 1 % / 99 %
     if (pct < 2.0f) pct = 0.0f;
     if (pct > 98.0f) pct = 100.0f;
 
     percent_sensor_->publish_state(pct);
+  }
 
-    // ===== AUTO STOP NA CÍLI (POSITION MODE) =====
-    if (position_mode_) {
-      if (fabs(pct - target_percent_) < 1.0f) {
-        ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
-        stop();
-        position_mode_ = false;
+  // ===== AUTO STOP NA POZICI =====
+  if (position_mode_ && pct >= 0) {
+    if (fabs(pct - target_percent_) < 1.0f) {
+      ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
+      stop();
+      position_mode_ = false;
+    }
+  }
+
+  // ===== RAMP ENGINE =====
+  uint32_t now = millis();
+  if (now - last_ramp_update_ >= RAMP_DT_MS) {
+    last_ramp_update_ = now;
+
+    static float last_dist = 0.0f;
+    float dist = 0.0f;
+
+    if (has_zero_ && has_max_) {
+      dist = moving_cw_
+          ? fabsf(max_turns_ - total)
+          : total;
+    }
+
+    float dist_delta = last_dist - dist;
+    last_dist = dist;
+
+    int effective = target_speed_;
+
+    if (has_zero_ && has_max_) {
+      if (dist < DECEL_ZONE) {
+        float k = dist / DECEL_ZONE;
+        if (k < 0) k = 0;
+        if (k > 1) k = 1;
+        effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * (k * k * k));
       }
+
+      if (dist_delta > 0.01f) {
+        effective -= (int)(dist_delta * 800.0f);
+        if (effective < SPEED_MIN)
+          effective = SPEED_MIN;
+      }
+    }
+
+    if (current_speed_ < effective) {
+      current_speed_ += ACCEL_RATE;
+      if (current_speed_ > effective) current_speed_ = effective;
+    } else if (current_speed_ > effective) {
+      current_speed_ -= ACCEL_RATE;
+      if (current_speed_ < effective) current_speed_ = effective;
+    }
+
+    if (moving_ && current_speed_ >= SPEED_MIN) {
+      uint8_t lo = current_speed_ & 0xFF;
+      uint8_t hi = (current_speed_ >> 8) & 0x7F;
+      if (!moving_cw_) hi |= 0x80;
+      send_packet_(servo_id_, 0x03, {0x2E, lo, hi});
+    }
+  }
+
+  // ===== SOFT KONCÁKY =====
+  if (moving_) {
+    if (has_zero_ && total <= STOP_EPS && !moving_cw_) {
+      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
+      stop();
+    }
+
+    if (has_max_ && total >= (max_turns_ - STOP_EPS) && moving_cw_) {
+      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP");
+      stop();
     }
   }
 }
+
 
 
 
