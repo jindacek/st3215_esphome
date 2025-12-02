@@ -52,6 +52,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_turns_full_open(float t) { max_turns_ = t; has_max_ = true; }
   void set_max_angle(float) {}
 
+  // Restart UART
+  void restart_uart();
+
   // Ovládání
   void rotate(bool cw, int speed);
   void stop();
@@ -90,6 +93,11 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   float max_turns_{0};
   bool has_zero_{false};
   bool has_max_{false};
+
+  // ===== UART FAULT / RECOVERY =====
+  uint8_t encoder_fail_count_{0};
+  bool encoder_fault_{false};
+  uint32_t last_recovery_attempt_{0};
 
   // Kalibrace
   bool calibration_active_{false};
