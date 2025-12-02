@@ -1,5 +1,6 @@
 #include "st3215_servo.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include <cmath>
 
 namespace esphome {
@@ -27,6 +28,57 @@ void St3215Servo::update_calib_state_(CalibState s) {
   if (calib_state_sensor_) {
     calib_state_sensor_->publish_state((int) s);
   }
+}
+
+// ================= PERSISTENTNÍ KALIBRACE =================
+bool St3215Servo::load_calibration_() {
+  // Každé servo dostane svůj "slot" podle ID
+  const uint32_t base = 0x1000 + static_cast<uint32_t>(servo_id_) * 2u;
+
+  auto pref_zero = global_preferences->make_preference<float>(base + 0);
+  auto pref_max  = global_preferences->make_preference<float>(base + 1);
+
+  float z = 0.0f;
+  float m = 0.0f;
+
+  if (!pref_zero.load(&z) || !pref_max.load(&m)) {
+    ESP_LOGI(TAG, "No stored calibration for servo %u", servo_id_);
+    return false;
+  }
+
+  // základní sanity check – příliš malý rozsah ignorujeme
+  if (m < 0.3f) {
+    ESP_LOGW(TAG, "Stored calibration invalid (max_turns=%.3f) – ignoring", m);
+    return false;
+  }
+
+  zero_offset_ = z;
+  max_turns_   = m;
+  has_zero_    = true;
+  has_max_     = true;
+
+  ESP_LOGI(TAG, "Loaded calibration from flash: zero=%.3f, max=%.3f",
+           zero_offset_, max_turns_);
+  return true;
+}
+
+void St3215Servo::save_calibration_() {
+  if (!has_zero_ || !has_max_) {
+    ESP_LOGW(TAG, "Cannot save calibration – flags not set (has_zero=%d, has_max=%d)",
+             has_zero_, has_max_);
+    return;
+  }
+
+  const uint32_t base = 0x1000 + static_cast<uint32_t>(servo_id_) * 2u;
+
+  auto pref_zero = global_preferences->make_preference<float>(base + 0);
+  auto pref_max  = global_preferences->make_preference<float>(base + 1);
+
+  pref_zero.save(&zero_offset_);
+  pref_max.save(&max_turns_);
+
+  ESP_LOGI(TAG, "Calibration saved to flash: zero=%.3f, max=%.3f",
+           zero_offset_, max_turns_);
 }
 
 // ================= CHECKSUM =================
@@ -127,10 +179,15 @@ void St3215Servo::setup() {
 
   torque_on_ = true;
 
+  // ===== NAČTENÍ KALIBRACE Z FLASH =====
+  bool loaded = this->load_calibration_();
+
   // ===== INIT STAVU KALIBRACE =====
   if (!has_zero_ || !has_max_) {
     update_calib_state_(CALIB_IDLE);
-    ESP_LOGI(TAG, "Nutná kalibrace rolety");
+    ESP_LOGI(TAG, loaded
+                  ? "Stored calibration incomplete – nutná kalibrace rolety"
+                  : "Nutná kalibrace rolety");
   } else {
     update_calib_state_(CALIB_DONE);
     ESP_LOGI(TAG, "Roleta připravena (max_turns=%.2f)", max_turns_);
@@ -425,6 +482,9 @@ void St3215Servo::confirm_calibration_step() {
     has_max_ = true;
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
+
+    // kalibrace hotová → uložit do flash
+    this->save_calibration_();
   }
 }
 
