@@ -151,11 +151,13 @@ void St3215Servo::update() {
   if (!read_registers_(servo_id_, 0x38, 2, pos)) {
     encoder_fail_count_++;
 
+    // po 3 chybách zkus reset UART (max 1× za 2 s)
     if (encoder_fail_count_ >= 3 && millis() - last_recovery_attempt_ > 2000) {
       last_recovery_attempt_ = millis();
       restart_uart();
     }
 
+    // po ENCODER_FAIL_LIMIT chybách → emergency stop
     if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
       ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
       stop();
@@ -165,12 +167,12 @@ void St3215Servo::update() {
     return;
   }
 
+  // ===== OK =====
   encoder_fail_count_ = 0;
-
   if (encoder_fault_)
     return;
 
-  // ===== ZPRACOVÁNÍ RAW =====
+  // ===== RAW =====
   uint16_t raw = pos[0] | (pos[1] << 8);
   if (raw >= 4096 || raw == 0xFFFF)
     return;
@@ -187,10 +189,8 @@ void St3215Servo::update() {
   if (abs(diff) > 3800)
     return;
 
-  if (diff > 2048)
-    turns_base_--;
-  else if (diff < -2048)
-    turns_base_++;
+  if (diff > 2048) turns_base_--;
+  else if (diff < -2048) turns_base_++;
 
   last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
@@ -198,63 +198,63 @@ void St3215Servo::update() {
   float angle = (raw / RAW_PER_TURN) * 360.0f;
   float total = fabsf(turns_unwrapped_ - zero_offset_);
 
-  // ===== PUBLIKACE SENZORŮ =====
+  // ===== PUBLIKACE =====
   if (angle_sensor_) angle_sensor_->publish_state(angle);
   if (turns_sensor_) turns_sensor_->publish_state(total);
 
-  float pct = -1;
+  float pct = NAN;
 
   if (percent_sensor_ && has_zero_ && has_max_) {
     pct = 100.0f - (total / max_turns_) * 100.0f;
 
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 100.0f) pct = 100.0f;
+
     if (pct < 2.0f) pct = 0.0f;
     if (pct > 98.0f) pct = 100.0f;
 
     percent_sensor_->publish_state(pct);
-  }
 
-  // ===== AUTO STOP NA POZICI =====
-  if (position_mode_ && pct >= 0) {
-    if (fabs(pct - target_percent_) < 1.0f) {
-      ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
-      stop();
-      position_mode_ = false;
+    // ===== AUTO STOP POSITION MODE =====
+    if (position_mode_) {
+      if (fabs(pct - target_percent_) < 1.0f) {
+        ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
+        stop();
+        position_mode_ = false;
+      }
     }
   }
 
-  // ===== RAMP ENGINE =====
+  // ================= RAMP ENGINE =================
   uint32_t now = millis();
   if (now - last_ramp_update_ >= RAMP_DT_MS) {
     last_ramp_update_ = now;
 
-    static float last_dist = 0.0f;
-    float dist = 0.0f;
+    static float last_dist = 0;
 
+    float dist = 0;
     if (has_zero_ && has_max_) {
-      dist = moving_cw_
-          ? fabsf(max_turns_ - total)
-          : total;
+      dist = moving_cw_ ? fabsf(max_turns_ - total) : total;
     }
 
-    float dist_delta = last_dist - dist;
+    float delta = last_dist - dist;
     last_dist = dist;
 
     int effective = target_speed_;
 
     if (has_zero_ && has_max_) {
+
       if (dist < DECEL_ZONE) {
         float k = dist / DECEL_ZONE;
-        if (k < 0) k = 0;
-        if (k > 1) k = 1;
-        effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * (k * k * k));
+        k = fmaxf(0, fminf(1, k));
+        float smooth = k * k * k;
+        effective = SPEED_MIN + (target_speed_ - SPEED_MIN) * smooth;
       }
 
-      if (dist_delta > 0.01f) {
-        effective -= (int)(dist_delta * 800.0f);
-        if (effective < SPEED_MIN)
-          effective = SPEED_MIN;
+      float predictive = delta * 1.4f;
+      if (predictive > 0.01f) {
+        effective -= (int)(predictive * 800);
+        if (effective < SPEED_MIN) effective = SPEED_MIN;
       }
     }
 
@@ -274,7 +274,7 @@ void St3215Servo::update() {
     }
   }
 
-  // ===== SOFT KONCÁKY =====
+  // ================= SOFT KONCÁKY =================
   if (moving_) {
     if (has_zero_ && total <= STOP_EPS && !moving_cw_) {
       ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
@@ -287,6 +287,7 @@ void St3215Servo::update() {
     }
   }
 }
+
 
 
 
