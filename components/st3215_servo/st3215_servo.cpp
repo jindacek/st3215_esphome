@@ -405,17 +405,37 @@ void St3215Servo::update() {
   // ===== SOFT KONCÁKY =====
   if (moving_) {
 
+    // HORNÍ KONCÁK – 100 %
     if (has_zero_ && total <= STOP_EPS && !moving_cw_) {
-      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
+      // tvrdý sync na horní doraz
+      turns_unwrapped_ = zero_offset_;
+
+      // přepočet base tak, aby platilo:
+      // turns_unwrapped_ ≈ turns_base_ + raw/RAW_PER_TURN
+      float frac = raw / RAW_PER_TURN;
+      turns_base_ = static_cast<int32_t>(std::round(turns_unwrapped_ - frac));
+
+      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP (sync pos=%.3f, base=%ld)",
+               turns_unwrapped_, (long) turns_base_);
+
       stop();
     }
 
+    // DOLNÍ KONCÁK – 0 %
     if (has_max_ && total >= (max_turns_ - STOP_EPS) && moving_cw_) {
-      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP");
+      // tvrdý sync na spodní doraz
+      turns_unwrapped_ = zero_offset_ + max_turns_;
+
+      float frac = raw / RAW_PER_TURN;
+      turns_base_ = static_cast<int32_t>(std::round(turns_unwrapped_ - frac));
+
+      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP (sync pos=%.3f, base=%ld)",
+               turns_unwrapped_, (long) turns_base_);
+
       stop();
     }
   }
-}
+
 
 // ================= MOVE TO PORCENT =================
 void St3215Servo::move_to_percent(float pct) {
