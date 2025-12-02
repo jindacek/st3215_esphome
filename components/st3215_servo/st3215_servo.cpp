@@ -326,6 +326,31 @@ void St3215Servo::move_to_percent(float pct) {
   }
 }
 
+// ===== UART FAULT / RECOVERY =====
+void St3215Servo::restart_uart() {
+  ESP_LOGW(TAG, "UART RECOVERY: resetting UART session");
+
+  // vyprázdni RX
+  flush();
+  while (available()) read();
+
+  delay(80);
+
+  // znovu nastav mód serva
+  const uint8_t motor_mode[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x01,0xD5};
+  write_array(motor_mode, sizeof(motor_mode));
+  flush();
+
+  delay(50);
+
+  // znovu zapni moment
+  const uint8_t torque_on[]  = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
+  write_array(torque_on, sizeof(torque_on));
+  flush();
+
+  ESP_LOGW(TAG, "UART RECOVERY: done");
+}
+
 // ================= TORQUE =================
 void St3215Servo::set_torque(bool on) {
   const uint8_t torque_on[]  = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
