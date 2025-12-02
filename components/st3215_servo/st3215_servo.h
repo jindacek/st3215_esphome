@@ -91,7 +91,11 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   bool has_zero_{false};
   bool has_max_{false};
 
-  // Persistentní kalibrace (NVS)
+  // Uložená absolutní poloha z flash
+  float stored_turns_{0.0f};
+  bool has_stored_turns_{false};
+
+  // Persistentní kalibrace + poloha (NVS)
   bool load_calibration_();
   void save_calibration_();
 
