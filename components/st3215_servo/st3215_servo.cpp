@@ -57,14 +57,14 @@ void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
 // ================= READ REGISTERS =================
 bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
                                   std::vector<uint8_t> &out) {
-  while (available()) (void) read();
+  // Nečistíme agresivně RX buffer, jen pošleme dotaz
   send_packet_(id, 0x02, {addr, len});
 
   uint32_t start = millis();
   std::vector<uint8_t> buf;
   buf.reserve(32);
 
-  while (millis() - start < 50) {
+  while (millis() - start < 150) {
 
     while (available()) {
       buf.push_back(read());
@@ -145,24 +145,45 @@ void St3215Servo::dump_config() {
 
 // ================= UPDATE =================
 void St3215Servo::update() {
+  // ===== UART/ENCODER FAULT RECOVERY =====
+  static uint32_t last_uart_recovery = 0;
+
+  if (encoder_fault_) {
+    // Zkusíme jednou za 5 s obnovit komunikaci na sběrnici
+    uint32_t now = millis();
+    if (now - last_uart_recovery >= 5000) {
+      ESP_LOGW(TAG, "Trying UART recovery after encoder fault");
+
+      // Vyprázdnit TX, RX buffer
+      flush();
+      delay(10);
+      while (available()) {
+        (void) read();
+      }
+
+      encoder_fail_count_ = 0;
+      encoder_fault_ = false;
+      last_uart_recovery = now;
+    } else {
+      // Zatím jen čekáme na další pokus o recovery
+      return;
+    }
+  }
+
   std::vector<uint8_t> pos;
   if (!read_registers_(servo_id_, 0x38, 2, pos)) {
     encoder_fail_count_++;
-  
+
     if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
       ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
-      stop();                  // okamžitě zastavit
-      encoder_fault_ = true;   // už nic dalšího nedovolíme
+      stop();                // okamžitě zastavit
+      encoder_fault_ = true; // zbytek logiky přerušíme, dokud se neprovede recovery
     }
     return;
   }
-  
+
   // pokud se čtení povedlo → reset chyb
   encoder_fail_count_ = 0;
-  
-  // pokud už jednou došlo k poruše, dál nejedeme
-  if (encoder_fault_)
-    return;
 
   uint16_t raw = pos[0] | (pos[1] << 8);
   if (raw >= 4096 || raw == 0xFFFF)
@@ -195,17 +216,17 @@ void St3215Servo::update() {
   if (turns_sensor_) turns_sensor_->publish_state(total);
   if (percent_sensor_ && has_zero_ && has_max_) {
     float pct = 100.0f - (total / max_turns_) * 100.0f;
-  
+
     // fyzikální clamp
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 100.0f) pct = 100.0f;
-  
+
     // kosmetika pro HA – žádné 1 % / 99 %
     if (pct < 2.0f) pct = 0.0f;
     if (pct > 98.0f) pct = 100.0f;
-  
+
     percent_sensor_->publish_state(pct);
-  
+
     // ===== AUTO STOP NA CÍLI (POSITION MODE) =====
     if (position_mode_) {
       if (fabs(pct - target_percent_) < 1.5f) {
@@ -223,6 +244,11 @@ void St3215Servo::update() {
 
     // statická proměnná pro prediktivní brzdění (pamatuje si předchozí dist)
     static float last_dist = 0.0f;
+
+    // pro omezení počtu paketů do sběrnice si pamatujeme poslední
+    // odeslanou rychlost a směr
+    static int  last_sent_speed = -1;
+    static bool last_sent_cw    = true;
 
     // vypočítat vzdálenost ke konci
     float dist = 0.0f;
@@ -275,11 +301,19 @@ void St3215Servo::update() {
 
     // Odeslání nové rychlosti do serva
     if (moving_ && current_speed_ >= SPEED_MIN) {
-      uint8_t lo = current_speed_ & 0xFF;
-      uint8_t hi = (current_speed_ >> 8) & 0x7F;
-      if (!moving_cw_) hi |= 0x80;
-      std::vector<uint8_t> p = {0x2E, lo, hi};
-      send_packet_(servo_id_, 0x03, p);
+      // pošleme nový paket jen pokud se rychlost nebo směr změnily
+      if (current_speed_ != last_sent_speed || moving_cw_ != last_sent_cw) {
+        uint8_t lo = current_speed_ & 0xFF;
+        uint8_t hi = (current_speed_ >> 8) & 0x7F;
+        if (!moving_cw_) hi |= 0x80;
+        std::vector<uint8_t> p = {0x2E, lo, hi};
+        send_packet_(servo_id_, 0x03, p);
+        last_sent_speed = current_speed_;
+        last_sent_cw    = moving_cw_;
+      }
+    } else {
+      // když se nemá hýbat, další pohyb začne "od nuly"
+      last_sent_speed = -1;
     }
   }
 
@@ -340,6 +374,7 @@ void St3215Servo::set_torque(bool on) {
 // ================= STOP =================
 void St3215Servo::stop() {
   target_speed_ = 0;
+  current_speed_ = 0;
   position_mode_ = false;
   const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
   write_array(stop_cmd, sizeof(stop_cmd));
