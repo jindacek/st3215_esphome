@@ -217,7 +217,7 @@ void St3215Servo::dump_config() {
 // ================= UPDATE =================
 void St3215Servo::update() {
   // ===== UART/ENCODER FAULT RECOVERY =====
-  static uint32_t last_uart_recovery = 0;
+  uint32_t &last_uart_recovery = last_uart_recovery_;
 
   if (encoder_fault_) {
     // Zkusíme jednou za 5 s obnovit komunikaci na sběrnici
