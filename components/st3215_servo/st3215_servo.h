@@ -98,6 +98,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   uint8_t encoder_fail_count_{0};
   bool encoder_fault_{false};
   uint32_t last_recovery_attempt_{0};
+  static constexpr uint8_t ENCODER_FAIL_LIMIT = 3;
 
   // Kalibrace
   bool calibration_active_{false};
@@ -128,10 +129,6 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   float target_percent_{-1.0f};   // -1 = žádný cíl
   bool position_mode_{false};     // aktivní řízení na cíl
 
-  // ===== ENCODER FAULT =====
-  uint8_t encoder_fail_count_{0};
-  bool encoder_fault_{false};
-  static constexpr uint8_t ENCODER_FAIL_LIMIT = 3;
 
   // Low level comm
   uint8_t checksum_(const uint8_t *data, size_t len);
