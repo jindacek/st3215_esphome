@@ -435,7 +435,7 @@ void St3215Servo::update() {
       stop();
     }
   }
-
+}
 
 // ================= MOVE TO PORCENT =================
 void St3215Servo::move_to_percent(float pct) {
