@@ -30,23 +30,30 @@ void St3215Servo::update_calib_state_(CalibState s) {
   }
 }
 
-// ================= PERSISTENTNÍ KALIBRACE =================
+// ================= PERSISTENTNÍ ÚLOŽIŠTĚ =================
+//
+// Ukládáme:
+//  - zero_offset_ (horní poloha)
+//  - max_turns_   (plný rozsah)
+//  - turns_unwrapped_ (aktuální absolutní poloha)
+// Každé servo má svůj blok podle servo_id_.
+//
 bool St3215Servo::load_calibration_() {
-  // Každé servo dostane svůj "slot" podle ID
-  const uint32_t base = 0x1000 + static_cast<uint32_t>(servo_id_) * 2u;
+  const uint32_t base = 0x1000u + static_cast<uint32_t>(servo_id_) * 3u;
 
   auto pref_zero = global_preferences->make_preference<float>(base + 0);
   auto pref_max  = global_preferences->make_preference<float>(base + 1);
+  auto pref_pos  = global_preferences->make_preference<float>(base + 2);
 
   float z = 0.0f;
   float m = 0.0f;
+  float p = 0.0f;
 
-  if (!pref_zero.load(&z) || !pref_max.load(&m)) {
+  if (!pref_zero.load(&z) || !pref_max.load(&m) || !pref_pos.load(&p)) {
     ESP_LOGI(TAG, "No stored calibration for servo %u", servo_id_);
     return false;
   }
 
-  // základní sanity check – příliš malý rozsah ignorujeme
   if (m < 0.3f) {
     ESP_LOGW(TAG, "Stored calibration invalid (max_turns=%.3f) – ignoring", m);
     return false;
@@ -57,8 +64,12 @@ bool St3215Servo::load_calibration_() {
   has_zero_    = true;
   has_max_     = true;
 
-  ESP_LOGI(TAG, "Loaded calibration from flash: zero=%.3f, max=%.3f",
-           zero_offset_, max_turns_);
+  // uložená absolutní poloha
+  stored_turns_           = p;
+  has_stored_turns_       = true;
+
+  ESP_LOGI(TAG, "Loaded calibration from flash: zero=%.3f, max=%.3f, pos=%.3f",
+           zero_offset_, max_turns_, stored_turns_);
   return true;
 }
 
@@ -69,16 +80,20 @@ void St3215Servo::save_calibration_() {
     return;
   }
 
-  const uint32_t base = 0x1000 + static_cast<uint32_t>(servo_id_) * 2u;
+  const uint32_t base = 0x1000u + static_cast<uint32_t>(servo_id_) * 3u;
 
   auto pref_zero = global_preferences->make_preference<float>(base + 0);
   auto pref_max  = global_preferences->make_preference<float>(base + 1);
+  auto pref_pos  = global_preferences->make_preference<float>(base + 2);
 
   pref_zero.save(&zero_offset_);
   pref_max.save(&max_turns_);
 
-  ESP_LOGI(TAG, "Calibration saved to flash: zero=%.3f, max=%.3f",
-           zero_offset_, max_turns_);
+  float pos = turns_unwrapped_;
+  pref_pos.save(&pos);
+
+  ESP_LOGI(TAG, "Calibration+position saved to flash: zero=%.3f, max=%.3f, pos=%.3f",
+           zero_offset_, max_turns_, pos);
 }
 
 // ================= CHECKSUM =================
@@ -179,21 +194,20 @@ void St3215Servo::setup() {
 
   torque_on_ = true;
 
-  // ===== NAČTENÍ KALIBRACE Z FLASH =====
+  // Zkusíme načíst kalibraci + polohu z flash
   bool loaded = this->load_calibration_();
 
   // ===== INIT STAVU KALIBRACE =====
   if (!has_zero_ || !has_max_) {
     update_calib_state_(CALIB_IDLE);
     ESP_LOGI(TAG, loaded
-                  ? "Stored calibration incomplete – nutná kalibrace rolety"
-                  : "Nutná kalibrace rolety");
+                 ? "Stored calibration incomplete – Nutná kalibrace rolety"
+                 : "Nutná kalibrace rolety");
   } else {
     update_calib_state_(CALIB_DONE);
     ESP_LOGI(TAG, "Roleta připravena (max_turns=%.2f)", max_turns_);
   }
 }
-
 
 // ================= CONFIG =================
 void St3215Servo::dump_config() {
@@ -246,10 +260,26 @@ void St3215Servo::update() {
   if (raw >= 4096 || raw == 0xFFFF)
     return;
 
+  // První krok po startu – navázání na uloženou polohu
   if (!have_last_) {
     last_raw_ = raw;
-    turns_base_ = 0;
-    turns_unwrapped_ = raw / RAW_PER_TURN;
+
+    if (has_stored_turns_) {
+      // uložená absolutní poloha = turns_base + (raw / RAW_PER_TURN)
+      float frac = raw / RAW_PER_TURN;
+      // turns_base_ chceme jako integer tak, aby:
+      //  stored_turns_ ≈ turns_base_ + frac
+      turns_base_ = static_cast<int32_t>(std::round(stored_turns_ - frac));
+      turns_unwrapped_ = stored_turns_;
+      ESP_LOGI(TAG, "Using stored position: turns_unwrapped=%.3f, base=%ld, raw=%u",
+               turns_unwrapped_, (long) turns_base_, raw);
+    } else {
+      turns_base_ = 0;
+      turns_unwrapped_ = raw / RAW_PER_TURN;
+      ESP_LOGI(TAG, "No stored position, starting from raw=%.3f turns",
+               turns_unwrapped_);
+    }
+
     have_last_ = true;
     return;
   }
@@ -336,11 +366,9 @@ void St3215Servo::update() {
       }
 
       // 2) Prediktivní brzdění – když se blížíme moc rychle, uber ještě víc
-      // dist_delta ~ kolik otáček za krok rampy ujedeš směrem k dorazu
       float predictive_brake = dist_delta * 1.4f;  // koeficient pro doladění
 
       if (predictive_brake > 0.01f) {
-        // čím rychleji se blížíš, tím víc strhneme rychlost dolů
         effective -= (int)(predictive_brake * 800.0f);
         if (effective < SPEED_MIN)
           effective = SPEED_MIN;
@@ -439,6 +467,11 @@ void St3215Servo::stop() {
   moving_ = false;
   if (open_switch_)  open_switch_->publish_state(false);
   if (close_switch_) close_switch_->publish_state(false);
+
+  // máme kalibraci → uložíme i aktuální polohu
+  if (has_zero_ && has_max_) {
+    save_calibration_();
+  }
 }
 
 // ================= ROTATE =================
@@ -483,7 +516,7 @@ void St3215Servo::confirm_calibration_step() {
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
 
-    // kalibrace hotová → uložit do flash
+    // kalibrace hotová → uložit do flash včetně aktuální polohy
     this->save_calibration_();
   }
 }
