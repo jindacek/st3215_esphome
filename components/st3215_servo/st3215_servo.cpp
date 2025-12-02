@@ -330,12 +330,9 @@ void St3215Servo::update() {
     last_ramp_update_ = now;
 
     // statická proměnná pro prediktivní brzdění (pamatuje si předchozí dist)
-    static float last_dist = 0.0f;
-
-    // pro omezení počtu paketů do sběrnice si pamatujeme poslední
-    // odeslanou rychlost a směr
-    static int  last_sent_speed = -1;
-    static bool last_sent_cw    = true;
+    float &last_dist = ramp_last_dist_;
+    int   &last_sent_speed = ramp_last_sent_speed_;
+    bool  &last_sent_cw = ramp_last_sent_cw_;
 
     // vypočítat vzdálenost ke konci
     float dist = 0.0f;
