@@ -146,24 +146,35 @@ void St3215Servo::dump_config() {
 // ================= UPDATE =================
 void St3215Servo::update() {
   std::vector<uint8_t> pos;
+
+  // ===== ČTENÍ ENKODÉRU =====
   if (!read_registers_(servo_id_, 0x38, 2, pos)) {
     encoder_fail_count_++;
-  
+
+    // po 3 chybách zkus reset UART (max 1× za 2 s)
+    if (encoder_fail_count_ >= 3 && millis() - last_recovery_attempt_ > 2000) {
+      last_recovery_attempt_ = millis();
+      restart_uart();
+    }
+
+    // po ENCODER_FAIL_LIMIT chybách → emergency stop
     if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
       ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
       stop();                  // okamžitě zastavit
       encoder_fault_ = true;   // už nic dalšího nedovolíme
     }
-    return;
+
+    return;  // bez platných dat dál nepokračuj
   }
-  
-  // pokud se čtení povedlo → reset chyb
+
+  // ===== OK: čtení se povedlo =====
   encoder_fail_count_ = 0;
-  
-  // pokud už jednou došlo k poruše, dál nejedeme
+
+  // pokud už jednou došlo k poruše, dál nejezdíme
   if (encoder_fault_)
     return;
 
+  // ===== ZPRACOVÁNÍ RAW =====
   uint16_t raw = pos[0] | (pos[1] << 8);
   if (raw >= 4096 || raw == 0xFFFF)
     return;
@@ -191,21 +202,23 @@ void St3215Servo::update() {
   float angle = (raw / RAW_PER_TURN) * 360.0f;
   float total = fabsf(turns_unwrapped_ - zero_offset_);
 
+  // ===== PUBLIKACE SENZORŮ =====
   if (angle_sensor_) angle_sensor_->publish_state(angle);
   if (turns_sensor_) turns_sensor_->publish_state(total);
+
   if (percent_sensor_ && has_zero_ && has_max_) {
     float pct = 100.0f - (total / max_turns_) * 100.0f;
-  
+
     // fyzikální clamp
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 100.0f) pct = 100.0f;
-  
+
     // kosmetika pro HA – žádné 1 % / 99 %
     if (pct < 2.0f) pct = 0.0f;
     if (pct > 98.0f) pct = 100.0f;
-  
+
     percent_sensor_->publish_state(pct);
-  
+
     // ===== AUTO STOP NA CÍLI (POSITION MODE) =====
     if (position_mode_) {
       if (fabs(pct - target_percent_) < 1.0f) {
@@ -215,6 +228,8 @@ void St3215Servo::update() {
       }
     }
   }
+}
+
 
   // ===== RAMP ENGINE =====
   uint32_t now = millis();
