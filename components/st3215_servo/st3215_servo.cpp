@@ -276,7 +276,7 @@ void St3215Servo::update() {
 
     if (has_stored_turns_) {
       // uložená absolutní poloha = turns_base + (raw / RAW_PER_TURN)
-      float frac = raw / RAW_PER_TURN;
+      float frac = logical_raw / RAW_PER_TURN;
       // turns_base_ chceme jako integer tak, aby:
       //  stored_turns_ ≈ turns_base_ + frac
       turns_base_ = static_cast<int32_t>(std::round(stored_turns_ - frac));
