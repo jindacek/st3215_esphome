@@ -285,7 +285,7 @@ void St3215Servo::update() {
                turns_unwrapped_, (long) turns_base_, raw);
     } else {
       turns_base_ = 0;
-      turns_unwrapped_ = raw / RAW_PER_TURN;
+      turns_unwrapped_ = logical_raw / RAW_PER_TURN;
       ESP_LOGI(TAG, "No stored position, starting from raw=%.3f turns",
                turns_unwrapped_);
     }
