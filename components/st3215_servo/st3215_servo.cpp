@@ -91,7 +91,12 @@ void St3215Servo::save_calibration_() {
   pref_max.save(&max_turns_);
 
   float pos = turns_unwrapped_;
+
+  if (invert_direction_)
+    pos = -pos;
+
   pref_pos.save(&pos);
+
 
   ESP_LOGI(TAG, "Calibration+position saved to flash: zero=%.3f, max=%.3f, pos=%.3f",
            zero_offset_, max_turns_, pos);
