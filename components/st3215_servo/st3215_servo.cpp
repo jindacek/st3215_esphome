@@ -66,8 +66,14 @@ bool St3215Servo::load_calibration_() {
   has_max_     = true;
 
   // uložená absolutní poloha
-  stored_turns_           = p;
-  has_stored_turns_       = true;
+  float loaded = p;
+
+  if (invert_direction_)
+    loaded = -loaded;
+
+  stored_turns_ = loaded;
+  has_stored_turns_ = true;
+
 
   ESP_LOGI(TAG, "Loaded calibration from flash: zero=%.3f, max=%.3f, pos=%.3f",
            zero_offset_, max_turns_, stored_turns_);
