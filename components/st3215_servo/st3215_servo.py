@@ -15,6 +15,9 @@ CONF_TURNS_FULL_OPEN = "turns_full_open"
 CONF_MAX_ANGLE = "max_angle"
 CONF_TORQUE_SWITCH = "torque_switch"
 
+# 👉 NOVÉ:
+CONF_INVERT_DIRECTION = "invert_direction"
+
 _SERVO_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(St3215Servo),
@@ -22,6 +25,10 @@ _SERVO_SCHEMA = cv.Schema(
         cv.Required(CONF_SERVO_ID): cv.int_range(min=0, max=100),
         cv.Optional(CONF_MAX_ANGLE, default=240.0): cv.float_,
         cv.Optional(CONF_TURNS_FULL_OPEN, default=0.0): cv.float_,
+
+        # 👉 NOVÉ: invertace směru
+        cv.Optional(CONF_INVERT_DIRECTION, default=False): cv.boolean,
+
         cv.Optional("angle"): sensor.sensor_schema(unit_of_measurement=UNIT_DEGREES),
         cv.Optional("turns"): sensor.sensor_schema(),
         cv.Optional("percent"): sensor.sensor_schema(unit_of_measurement=UNIT_PERCENT),
@@ -30,7 +37,6 @@ _SERVO_SCHEMA = cv.Schema(
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 
-# POZOR: teď je to seznam serv
 CONFIG_SCHEMA = cv.All(cv.ensure_list(_SERVO_SCHEMA))
 
 
@@ -43,6 +49,9 @@ async def to_code(config):
         cg.add(var.set_servo_id(conf[CONF_SERVO_ID]))
         cg.add(var.set_max_angle(conf[CONF_MAX_ANGLE]))
         cg.add(var.set_turns_full_open(conf[CONF_TURNS_FULL_OPEN]))
+
+        # 👉 NOVÉ:
+        cg.add(var.set_invert_direction(conf[CONF_INVERT_DIRECTION]))
 
         if "angle" in conf:
             sens = await sensor.new_sensor(conf["angle"])
