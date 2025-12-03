@@ -390,8 +390,8 @@ void St3215Servo::update() {
     }
   
     // === DEBUG RAMPA ===
-    ESP_LOGD(TAG, "[RAMP] dist=%.3f delta=%.4f eff=%d cur=%d moving=%d ",
-             dist, dist_delta, effective, current_speed_, moving_ ? 1 : 0);
+    // ESP_LOGD(TAG, "[RAMP] dist=%.3f delta=%.4f eff=%d cur=%d moving=%d ",
+             // dist, dist_delta, effective, current_speed_, moving_ ? 1 : 0);
   
     // Aplikace rampy (akcelerace/decelerace rychlosti)
     if (current_speed_ < effective) {
