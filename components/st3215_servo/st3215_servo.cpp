@@ -316,17 +316,10 @@ void St3215Servo::update() {
 
   last_raw_ = logical_raw;
   float frac = logical_raw / RAW_PER_TURN;
-  float abs_pos = turns_base_ + frac;
-
-  if (invert_direction_)
-    abs_pos = -abs_pos;
-
-  turns_unwrapped_ = abs_pos;
+  turns_unwrapped_ = turns_base_ + frac;
 
 
-
-
-  float angle = (raw / RAW_PER_TURN) * 360.0f;
+  float angle = (logical_raw / RAW_PER_TURN) * 360.0f;
   float total = fabsf(turns_unwrapped_ - zero_offset_);
 
   if (angle_sensor_) angle_sensor_->publish_state(angle);
