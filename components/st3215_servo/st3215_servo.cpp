@@ -15,7 +15,7 @@ static constexpr int   ACCEL_RATE    = 25;     // změna rychlosti za krok
 static constexpr uint32_t RAMP_DT_MS = 30;     // perioda rampy
 static constexpr float DECEL_ZONE    = 0.90f;  // kdy začít brzdit (otáčky před koncem)
 static constexpr float STOP_EPS      = 0.03f;  // hystereze koncáku
-static constexpr int POSITION_SPEED  = 1300;   // rychlost slideru
+static constexpr int POSITION_SPEED = 1300;   // rychlost slideru
 
 // ================= TORQUE SWITCH =================
 void St3215TorqueSwitch::write_state(bool state) {
@@ -87,65 +87,46 @@ void St3215Servo::save_calibration_() {
   auto pref_max  = global_preferences->make_preference<float>(base + 1);
   auto pref_pos  = global_preferences->make_preference<float>(base + 2);
 
+  pref_zero.save(&zero_offset_);
+  pref_max.save(&max_turns_);
+
   float pos = turns_unwrapped_;
+  pref_pos.save(&pos);
 
-  if (!pref_zero.save(&zero_offset_))
-    ESP_LOGW(TAG, "Failed to save zero_offset for servo %u", servo_id_);
-  if (!pref_max.save(&max_turns_))
-    ESP_LOGW(TAG, "Failed to save max_turns for servo %u", servo_id_);
-  if (!pref_pos.save(&pos))
-    ESP_LOGW(TAG, "Failed to save current position for servo %u", servo_id_);
-  else
-    ESP_LOGI(TAG, "Calibration+position saved to flash: zero=%.3f, max=%.3f, pos=%.3f",
-             zero_offset_, max_turns_, pos);
+  ESP_LOGI(TAG, "Calibration+position saved to flash: zero=%.3f, max=%.3f, pos=%.3f",
+           zero_offset_, max_turns_, pos);
 }
 
-// ================= LOW-LEVEL COMMS =================
+// ================= CHECKSUM =================
 uint8_t St3215Servo::checksum_(const uint8_t *data, size_t len) {
-  uint8_t sum = 0;
-  for (size_t i = 2; i < len - 1; i++) {
-    sum += data[i];
-  }
-  return ~sum;
+  uint16_t sum = 0;
+  for (size_t i = 2; i < len; i++) sum += data[i];
+  return (~sum) & 0xFF;
 }
 
-void St3215Servo::send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params) {
-  std::vector<uint8_t> pkt;
-  pkt.reserve(6 + params.size());
+// ================= SEND PACKET =================
+void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
+                               const std::vector<uint8_t> &params) {
+  std::vector<uint8_t> p;
+  p.reserve(6 + params.size());
 
-  pkt.push_back(0xFF);
-  pkt.push_back(0xFF);
-  pkt.push_back(id);
+  p.push_back(0xFF);
+  p.push_back(0xFF);
+  p.push_back(id);
+  p.push_back(params.size() + 2);
+  p.push_back(cmd);
+  for (auto b : params) p.push_back(b);
+  p.push_back(checksum_(p.data(), p.size()));
 
-  uint8_t length = 2 + static_cast<uint8_t>(params.size());
-  pkt.push_back(length);
-  pkt.push_back(cmd);
-
-  for (auto b : params)
-    pkt.push_back(b);
-
-  uint8_t chk = checksum_(pkt.data(), pkt.size() + 1);
-  pkt.push_back(chk);
-
-  write_array(pkt.data(), pkt.size());
+  write_array(p);
   flush();
 }
 
-bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out) {
-  std::vector<uint8_t> pkt;
-  pkt.reserve(8);
-  pkt.push_back(0xFF);
-  pkt.push_back(0xFF);
-  pkt.push_back(id);
-  pkt.push_back(0x04);
-  pkt.push_back(0x02);   // READ
-  pkt.push_back(addr);
-  pkt.push_back(len);
-  uint8_t chk = checksum_(pkt.data(), pkt.size() + 1);
-  pkt.push_back(chk);
-
-  write_array(pkt.data(), pkt.size());
-  flush();
+// ================= READ REGISTERS =================
+bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
+                                  std::vector<uint8_t> &out) {
+  // Nečistíme agresivně RX buffer, jen pošleme dotaz
+  send_packet_(id, 0x02, {addr, len});
 
   uint32_t start = millis();
   std::vector<uint8_t> buf;
@@ -181,9 +162,9 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::ve
       continue;
     }
 
-    uint8_t rchk = buf[full_len - 1];
+    uint8_t chk = buf[full_len - 1];
     uint8_t calc = checksum_(buf.data(), full_len - 1);
-    if (rchk != calc) {
+    if (chk != calc) {
       buf.erase(buf.begin(), buf.begin() + full_len);
       continue;
     }
@@ -202,19 +183,13 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::ve
 
 // ================= SETUP =================
 void St3215Servo::setup() {
-  ESP_LOGI(TAG, "ST3215 init ID=%u", servo_id_);
+  ESP_LOGI(TAG, "ST3215 init ID=%u invert=%d", servo_id_, invert_direction_);
 
   // Nastavení motoru do "motor mode"
   // (původně byl posílán napevno paket s checksumem spočítaným jen pro ID=1)
-  // const uint8_t motor_mode[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x21,0x01,0xD5};
-  // write_array(motor_mode, sizeof(motor_mode));
-  // flush();
   send_packet_(servo_id_, 0x03, {0x21, 0x01});
 
   // Zapnutí krouticího momentu (torque ON)
-  // const uint8_t torque_on[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
-  // write_array(torque_on, sizeof(torque_on));
-  // flush();
   send_packet_(servo_id_, 0x03, {0x28, 0x01});
 
   torque_on_ = true;
@@ -236,7 +211,7 @@ void St3215Servo::setup() {
 
 // ================= CONFIG =================
 void St3215Servo::dump_config() {
-  ESP_LOGCONFIG(TAG, "ST3215 Servo ID=%u", servo_id_);
+  ESP_LOGCONFIG(TAG, "ST3215 Servo ID=%u invert=%d", servo_id_, invert_direction_);
 }
 
 // ================= UPDATE =================
@@ -310,6 +285,10 @@ void St3215Servo::update() {
   }
 
   int diff = (int) raw - (int) last_raw_;
+
+  // invertace enkodéru pro otočené servo
+  if (invert_direction_) diff = -diff;
+
   if (abs(diff) > 3800)
     return;
 
@@ -317,6 +296,7 @@ void St3215Servo::update() {
     turns_base_--;
   else if (diff < -2048)
     turns_base_++;
+
 
   last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
@@ -408,22 +388,20 @@ void St3215Servo::update() {
 
     // Odeslání nové rychlosti do serva
     if (moving_ && current_speed_ >= SPEED_MIN) {
-      // pošleme nový paket jen pokud se rychlost nebo směr změnily
-      if (current_speed_ != last_sent_speed || moving_cw_ != last_sent_cw) {
+      // logický směr (CW = dolů), fyzický směr = případně invertovaný
+      bool phys_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
+
+      // pošleme nový paket jen pokud se rychlost nebo fyzický směr změnily
+      if (current_speed_ != last_sent_speed || phys_cw != last_sent_cw) {
         uint8_t lo = current_speed_ & 0xFF;
-
-        // moving_cw_ = logický směr "dolů" (zavírání rolety)
-        // invert_direction_ = mechanicky otočené servo (zrcadlené)
-        // → přepočítáme na fyzický CW/CCW pro ST3215
-        bool physical_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
-
         uint8_t hi = (current_speed_ >> 8) & 0x7F;
-        if (!physical_cw) hi |= 0x80;  // bit 7 = 1 → CCW
+        if (!phys_cw) hi |= 0x80;  // bit směru
 
         std::vector<uint8_t> p = {0x2E, lo, hi};
         send_packet_(servo_id_, 0x03, p);
+
         last_sent_speed = current_speed_;
-        last_sent_cw    = moving_cw_;
+        last_sent_cw    = phys_cw;
       }
     } else {
       // když se nemá hýbat, další pohyb začne "od nuly"
@@ -432,9 +410,10 @@ void St3215Servo::update() {
   }
 
   // ===== SOFT KONCÁKY =====
-  if (moving_) {
+  // Pozn.: během kalibrace jsou vypnuté, aby neblokovaly dojetí na dorazy
+  if (moving_ && !calibration_active_) {
 
-    // HORNÍ KONCÁK – 100 %
+    // HORNÍ KONCÁK – 100 % (nahoru = CCW = moving_cw_ == false)
     if (has_zero_ && total <= STOP_EPS && !moving_cw_) {
       // tvrdý sync na horní doraz
       turns_unwrapped_ = zero_offset_;
@@ -450,7 +429,7 @@ void St3215Servo::update() {
       stop();
     }
 
-    // DOLNÍ KONCÁK – 0 %
+    // DOLNÍ KONCÁK – 0 % (dolů = CW = moving_cw_ == true)
     if (has_max_ && total >= (max_turns_ - STOP_EPS) && moving_cw_) {
       // tvrdý sync na spodní doraz
       turns_unwrapped_ = zero_offset_ + max_turns_;
@@ -486,10 +465,10 @@ void St3215Servo::move_to_percent(float pct) {
   }
 
   if (pct > current) {
-    // otevřít (CCW)
+    // otevřít (CCW) – NAHORU
     rotate(false, POSITION_SPEED);
   } else {
-    // zavřít (CW)
+    // zavřít (CW) – DOLŮ
     rotate(true, POSITION_SPEED);
   }
 }
@@ -542,8 +521,8 @@ void St3215Servo::stop() {
 
 // ================= ROTATE =================
 void St3215Servo::rotate(bool cw, int speed) {
+  // cw = logický směr DOLŮ (bez ohledu na mechaniku / invert_direction)
   moving_ = true;
-  // cw = logický směr "dolů" (zavírat roletu) – používá se pro rampu a soft koncáky
   moving_cw_ = cw;
 
   if (speed < 0) speed = -speed;
@@ -553,13 +532,33 @@ void St3215Servo::rotate(bool cw, int speed) {
 
 // ================= CALIBRATION =================
 void St3215Servo::start_calibration() {
+  ESP_LOGI(TAG, "=== KALIBRACE START ===");
+
+  // Zastavit jakýkoli pohyb
+  stop();
+  delay(200);
+
+  // Tvrdý reset kalibračního stavu
   calibration_active_ = true;
+
   has_zero_ = false;
   has_max_ = false;
   zero_offset_ = 0.0f;
   max_turns_ = 0.0f;
+
+  // Reset pozice (aby se negenerovaly SW koncáky z minula)
+  has_stored_turns_ = false;
+  turns_base_ = 0;
+  ramp_last_dist_ = 999;
+
+  // Vypnout position mode
+  position_mode_ = false;
+
+  ESP_LOGI(TAG, "Kalibrace READY – čekám na horní polohu");
+
   update_calib_state_(CALIB_WAIT_TOP);
 }
+
 
 void St3215Servo::confirm_calibration_step() {
   if (!calibration_active_) return;
