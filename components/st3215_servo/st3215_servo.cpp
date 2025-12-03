@@ -453,7 +453,7 @@ void St3215Servo::update() {
       ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP (sync pos=%.3f, base=%ld)",
                turns_unwrapped_, (long) turns_base_);
 
-      llast_raw_ = logical_raw;      
+      last_raw_ = logical_raw;      
       stop();
     }
   }
