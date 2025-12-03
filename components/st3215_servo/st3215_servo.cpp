@@ -278,7 +278,7 @@ void St3215Servo::update() {
 
   // První krok po startu – navázání na uloženou polohu
   if (!have_last_) {
-    last_raw_ = raw;
+    last_raw_ = logical_raw;
 
     if (has_stored_turns_) {
       // uložená absolutní poloha = turns_base + (raw / RAW_PER_TURN)
