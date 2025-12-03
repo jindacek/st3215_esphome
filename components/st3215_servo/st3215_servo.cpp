@@ -445,7 +445,8 @@ void St3215Servo::update() {
 
       ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP (sync pos=%.3f, base=%ld)",
                turns_unwrapped_, (long) turns_base_);
-
+      
+      last_raw_ = raw;
       stop();
     }
 
@@ -460,6 +461,7 @@ void St3215Servo::update() {
       ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP (sync pos=%.3f, base=%ld)",
                turns_unwrapped_, (long) turns_base_);
 
+      last_raw_ = raw;      
       stop();
     }
   }
