@@ -345,12 +345,12 @@ void St3215Servo::update() {
   uint32_t now = millis();
   if (now - last_ramp_update_ >= RAMP_DT_MS) {
     last_ramp_update_ = now;
-
+  
     // statická proměnná pro prediktivní brzdění (pamatuje si předchozí dist)
     float &last_dist = ramp_last_dist_;
     int   &last_sent_speed = ramp_last_sent_speed_;
     bool  &last_sent_cw = ramp_last_sent_cw_;
-
+  
     // vypočítat vzdálenost ke konci
     float dist = 0.0f;
     if (has_zero_ && has_max_) {
@@ -360,35 +360,39 @@ void St3215Servo::update() {
           ? fabsf(max_turns_ - total)   // spodní konec
           : total;                      // horní konec
     }
-
+  
     // rychlost přibližování (kladná, když se blížíme k dorazu)
     float dist_delta = last_dist - dist;
     last_dist = dist;
-
+  
     // základní cílová rychlost vychází z uživatelem chtěné rychlosti
     int effective = target_speed_;
-
+  
     if (has_zero_ && has_max_) {
       // 1) Základní brzdění podle vzdálenosti (S-křivka)
       if (dist < DECEL_ZONE) {
         float k = dist / DECEL_ZONE;
         if (k < 0) k = 0;
         if (k > 1) k = 1;
-
+  
         float smooth = k * k * k;  // hezky měkké brzdění
         effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * smooth);
       }
-
+  
       // 2) Prediktivní brzdění – když se blížíme moc rychle, uber ještě víc
       float predictive_brake = dist_delta * 1.4f;  // koeficient pro doladění
-
+  
       if (predictive_brake > 0.01f) {
         effective -= (int)(predictive_brake * 800.0f);
         if (effective < SPEED_MIN)
           effective = SPEED_MIN;
       }
     }
-
+  
+    // === DEBUG RAMPA ===
+    ESP_LOGD(TAG, "[RAMP] dist=%.3f delta=%.4f eff=%d cur=%d moving=%d ",
+             dist, dist_delta, effective, current_speed_, moving_ ? 1 : 0);
+  
     // Aplikace rampy (akcelerace/decelerace rychlosti)
     if (current_speed_ < effective) {
       current_speed_ += ACCEL_RATE;
@@ -397,21 +401,24 @@ void St3215Servo::update() {
       current_speed_ -= ACCEL_RATE;
       if (current_speed_ < effective) current_speed_ = effective;
     }
-
+  
     // Odeslání nové rychlosti do serva
     if (moving_ && current_speed_ >= SPEED_MIN) {
       // logický směr (CW = dolů), fyzický směr = případně invertovaný
       bool phys_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
-
+  
+      // === DEBUG SMĚRU A SPEED ===
+      ESP_LOGD(TAG, "[SEND] speed=%d phys_cw=%d", current_speed_, phys_cw ? 1 : 0);
+  
       // pošleme nový paket jen pokud se rychlost nebo fyzický směr změnily
       if (current_speed_ != last_sent_speed || phys_cw != last_sent_cw) {
         uint8_t lo = current_speed_ & 0xFF;
         uint8_t hi = (current_speed_ >> 8) & 0x7F;
         if (!phys_cw) hi |= 0x80;  // bit směru
-
+  
         std::vector<uint8_t> p = {0x2E, lo, hi};
         send_packet_(servo_id_, 0x03, p);
-
+  
         last_sent_speed = current_speed_;
         last_sent_cw    = phys_cw;
       }
