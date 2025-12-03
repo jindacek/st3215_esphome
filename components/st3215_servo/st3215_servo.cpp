@@ -527,13 +527,33 @@ void St3215Servo::rotate(bool cw, int speed) {
 
 // ================= CALIBRATION =================
 void St3215Servo::start_calibration() {
+  ESP_LOGI(TAG, "=== KALIBRACE START ===");
+
+  // Zastavit jakýkoli pohyb
+  stop();
+  delay(200);
+
+  // Tvrdý reset kalibračního stavu
   calibration_active_ = true;
+
   has_zero_ = false;
   has_max_ = false;
   zero_offset_ = 0.0f;
   max_turns_ = 0.0f;
+
+  // Reset pozice (aby se negenerovaly SW koncáky z minula)
+  has_stored_turns_ = false;
+  turns_base_ = 0;
+  ramp_last_dist_ = 999;
+
+  // Vypnout position mode
+  position_mode_ = false;
+
+  ESP_LOGI(TAG, "Kalibrace READY – čekám na horní polohu");
+
   update_calib_state_(CALIB_WAIT_TOP);
 }
+
 
 void St3215Servo::confirm_calibration_step() {
   if (!calibration_active_) return;
