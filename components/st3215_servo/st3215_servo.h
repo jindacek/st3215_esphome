@@ -52,7 +52,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_turns_full_open(float t) { max_turns_ = t; has_max_ = true; }
   void set_max_angle(float) {}
 
-  // 👉 NOVÉ: směr otáčení serva (pro fyzicky obrácené montáže)
+  // Inverze směru – pro fyzicky otočená serva
   void set_invert_direction(bool inv) { invert_direction_ = inv; }
 
   // Ovládání
@@ -84,7 +84,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   uint8_t servo_id_{1};
   bool torque_on_{true};
 
-  // 👉 NOVÉ: inverze směru pohybu
+  // Inverze směru (true = prohodit CW/CCW na drátu, logika zůstává stejná)
   bool invert_direction_{false};
 
   uint16_t last_raw_{0};
@@ -121,7 +121,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
   St3215TorqueSwitch *torque_switch_{nullptr};
 
-  // Stav pohybu pro SW koncáky
+  // Stav pohybu pro SW koncáky (logický směr: CW = DOLŮ, CCW = NAHORU)
   bool moving_{false};
   bool moving_cw_{false};
 
