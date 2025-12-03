@@ -271,6 +271,11 @@ void St3215Servo::update() {
   if (raw >= 4096 || raw == 0xFFFF)
     return;
 
+  // ===== VIRTUÁLNÍ ENKODÉR =====
+  // vše dál pracuje už jen s logical_raw
+  uint16_t logical_raw = invert_direction_ ? (4095 - raw) : raw;
+
+
   // První krok po startu – navázání na uloženou polohu
   if (!have_last_) {
     last_raw_ = raw;
