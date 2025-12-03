@@ -314,8 +314,8 @@ void St3215Servo::update() {
     turns_base_++;
 
 
-  last_raw_ = raw;
-  float frac = raw / RAW_PER_TURN;
+  last_raw_ = logical_raw;
+  float frac = logical_raw / RAW_PER_TURN;
   float abs_pos = turns_base_ + frac;
 
   if (invert_direction_)
