@@ -95,9 +95,6 @@ void St3215Servo::save_calibration_() {
 
   float pos = turns_unwrapped_;
 
-  if (invert_direction_)
-    pos = -pos;
-
   pref_pos.save(&pos);
 
 
