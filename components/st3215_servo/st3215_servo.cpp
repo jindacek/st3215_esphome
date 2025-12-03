@@ -360,8 +360,9 @@ void St3215Servo::update() {
     }
 
     if (moving_ && current_speed_ >= SPEED_MIN) {
-      if (current_speed_ != last_sent_speed || moving_cw_ != last_sent_cw) {
-        bool send_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
+      bool send_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
+
+      if (current_speed_ != last_sent_speed || send_cw != last_sent_cw) {
 
         uint8_t lo = current_speed_ & 0xFF;
         uint8_t hi = (current_speed_ >> 8) & 0x7F;
@@ -371,7 +372,7 @@ void St3215Servo::update() {
         send_packet_(servo_id_, 0x03, p);
 
         last_sent_speed = current_speed_;
-        last_sent_cw    = moving_cw_;
+        last_sent_cw    = send_cw;
       }
     } else {
       last_sent_speed = -1;
