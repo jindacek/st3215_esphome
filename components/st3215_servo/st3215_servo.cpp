@@ -300,7 +300,7 @@ void St3215Servo::update() {
     return;
   }
 
-  int diff = (int) raw - (int) last_raw_;
+  int diff = (int) logical_raw - (int) last_raw_;
 
   // invertace enkodéru pro otočené servo
   //if (invert_direction_) diff = -diff;
