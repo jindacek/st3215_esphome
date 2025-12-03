@@ -300,11 +300,13 @@ void St3215Servo::update() {
 
   last_raw_ = raw;
   float frac = raw / RAW_PER_TURN;
+  float pos = turns_base_ + frac;
 
   if (invert_direction_)
-    frac = -frac;
+    pos = -pos;
 
-  turns_unwrapped_ = turns_base_ + frac;
+  turns_unwrapped_ = pos;
+
 
 
   float angle = (raw / RAW_PER_TURN) * 360.0f;
