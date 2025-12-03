@@ -68,9 +68,6 @@ bool St3215Servo::load_calibration_() {
   // uložená absolutní poloha
   float loaded = p;
 
-  if (invert_direction_)
-    loaded = -loaded;
-
   stored_turns_ = loaded;
   has_stored_turns_ = true;
 
