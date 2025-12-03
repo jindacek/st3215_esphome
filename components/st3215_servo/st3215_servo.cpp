@@ -438,13 +438,13 @@ void St3215Servo::update() {
 
       // přepočet base tak, aby platilo:
       // turns_unwrapped_ ≈ turns_base_ + raw/RAW_PER_TURN
-      float frac = raw / RAW_PER_TURN;
+      float frac = logical_raw / RAW_PER_TURN;
       turns_base_ = static_cast<int32_t>(std::round(turns_unwrapped_ - frac));
 
       ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP (sync pos=%.3f, base=%ld)",
                turns_unwrapped_, (long) turns_base_);
       
-      last_raw_ = raw;
+      last_raw_ = logical_raw;
       stop();
     }
 
@@ -453,13 +453,13 @@ void St3215Servo::update() {
       // tvrdý sync na spodní doraz
       turns_unwrapped_ = zero_offset_ + max_turns_;
 
-      float frac = raw / RAW_PER_TURN;
+      float frac = logical_raw / RAW_PER_TURN;
       turns_base_ = static_cast<int32_t>(std::round(turns_unwrapped_ - frac));
 
       ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP (sync pos=%.3f, base=%ld)",
                turns_unwrapped_, (long) turns_base_);
 
-      last_raw_ = raw;      
+      llast_raw_ = logical_raw;      
       stop();
     }
   }
