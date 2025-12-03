@@ -285,6 +285,10 @@ void St3215Servo::update() {
   }
 
   int diff = (int) raw - (int) last_raw_;
+
+  // invertace enkodéru pro otočené servo
+  if (invert_direction_) diff = -diff;
+
   if (abs(diff) > 3800)
     return;
 
@@ -292,6 +296,7 @@ void St3215Servo::update() {
     turns_base_--;
   else if (diff < -2048)
     turns_base_++;
+
 
   last_raw_ = raw;
   turns_unwrapped_ = turns_base_ + (raw / RAW_PER_TURN);
