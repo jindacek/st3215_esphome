@@ -186,10 +186,12 @@ void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 init ID=%u invert=%d", servo_id_, invert_direction_);
 
   // Nastavení motoru do "motor mode"
+  // (původně byl posílán napevno paket s checksumem spočítaným jen pro ID=1)
   send_packet_(servo_id_, 0x03, {0x21, 0x01});
 
   // Zapnutí krouticího momentu (torque ON)
   send_packet_(servo_id_, 0x03, {0x28, 0x01});
+
   torque_on_ = true;
 
   // Zkusíme načíst kalibraci + polohu z flash
@@ -234,6 +236,7 @@ void St3215Servo::update() {
       encoder_fault_ = false;
       last_uart_recovery = now;
     } else {
+      // Zatím jen čekáme na další pokus o recovery
       return;
     }
   }
@@ -244,12 +247,13 @@ void St3215Servo::update() {
 
     if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
       ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
-      stop();
-      encoder_fault_ = true;
+      stop();                // okamžitě zastavit
+      encoder_fault_ = true; // zbytek logiky přerušíme, dokud se neprovede recovery
     }
     return;
   }
 
+  // pokud se čtení povedlo → reset chyb
   encoder_fail_count_ = 0;
 
   uint16_t raw = pos[0] | (pos[1] << 8);
@@ -261,7 +265,10 @@ void St3215Servo::update() {
     last_raw_ = raw;
 
     if (has_stored_turns_) {
+      // uložená absolutní poloha = turns_base + (raw / RAW_PER_TURN)
       float frac = raw / RAW_PER_TURN;
+      // turns_base_ chceme jako integer tak, aby:
+      //  stored_turns_ ≈ turns_base_ + frac
       turns_base_ = static_cast<int32_t>(std::round(stored_turns_ - frac));
       turns_unwrapped_ = stored_turns_;
       ESP_LOGI(TAG, "Using stored position: turns_unwrapped=%.3f, base=%ld, raw=%u",
@@ -294,17 +301,20 @@ void St3215Servo::update() {
 
   if (angle_sensor_) angle_sensor_->publish_state(angle);
   if (turns_sensor_) turns_sensor_->publish_state(total);
-
   if (percent_sensor_ && has_zero_ && has_max_) {
     float pct = 100.0f - (total / max_turns_) * 100.0f;
 
+    // fyzikální clamp
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 100.0f) pct = 100.0f;
+
+    // kosmetika pro HA – žádné 1 % / 99 %
     if (pct < 2.0f) pct = 0.0f;
     if (pct > 98.0f) pct = 100.0f;
 
     percent_sensor_->publish_state(pct);
 
+    // ===== AUTO STOP NA CÍLI (POSITION MODE) =====
     if (position_mode_) {
       if (fabs(pct - target_percent_) < 1.5f) {
         ESP_LOGI(TAG, "TARGET REACHED %.1f %%", pct);
@@ -319,38 +329,50 @@ void St3215Servo::update() {
   if (now - last_ramp_update_ >= RAMP_DT_MS) {
     last_ramp_update_ = now;
 
+    // statická proměnná pro prediktivní brzdění (pamatuje si předchozí dist)
     float &last_dist = ramp_last_dist_;
     int   &last_sent_speed = ramp_last_sent_speed_;
     bool  &last_sent_cw = ramp_last_sent_cw_;
 
+    // vypočítat vzdálenost ke konci
     float dist = 0.0f;
-    bool phys_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
-
     if (has_zero_ && has_max_) {
-      dist = phys_cw
-          ? fabsf(max_turns_ - total)
-          : total;
+      // dolů (CW) → směrem k max_turns_
+      // nahoru (CCW) → směrem k nule
+      dist = moving_cw_
+          ? fabsf(max_turns_ - total)   // spodní konec
+          : total;                      // horní konec
     }
 
+    // rychlost přibližování (kladná, když se blížíme k dorazu)
     float dist_delta = last_dist - dist;
     last_dist = dist;
 
+    // základní cílová rychlost vychází z uživatelem chtěné rychlosti
     int effective = target_speed_;
 
     if (has_zero_ && has_max_) {
+      // 1) Základní brzdění podle vzdálenosti (S-křivka)
       if (dist < DECEL_ZONE) {
         float k = dist / DECEL_ZONE;
-        float smooth = k * k * k;
+        if (k < 0) k = 0;
+        if (k > 1) k = 1;
+
+        float smooth = k * k * k;  // hezky měkké brzdění
         effective = SPEED_MIN + (int)((target_speed_ - SPEED_MIN) * smooth);
       }
 
-      float predictive_brake = dist_delta * 1.4f;
+      // 2) Prediktivní brzdění – když se blížíme moc rychle, uber ještě víc
+      float predictive_brake = dist_delta * 1.4f;  // koeficient pro doladění
+
       if (predictive_brake > 0.01f) {
         effective -= (int)(predictive_brake * 800.0f);
-        if (effective < SPEED_MIN) effective = SPEED_MIN;
+        if (effective < SPEED_MIN)
+          effective = SPEED_MIN;
       }
     }
 
+    // Aplikace rampy (akcelerace/decelerace rychlosti)
     if (current_speed_ < effective) {
       current_speed_ += ACCEL_RATE;
       if (current_speed_ > effective) current_speed_ = effective;
@@ -359,48 +381,60 @@ void St3215Servo::update() {
       if (current_speed_ < effective) current_speed_ = effective;
     }
 
+    // Odeslání nové rychlosti do serva
     if (moving_ && current_speed_ >= SPEED_MIN) {
-      bool send_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
+      // logický směr (CW = dolů), fyzický směr = případně invertovaný
+      bool phys_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
 
-      if (current_speed_ != last_sent_speed || send_cw != last_sent_cw) {
-
+      // pošleme nový paket jen pokud se rychlost nebo fyzický směr změnily
+      if (current_speed_ != last_sent_speed || phys_cw != last_sent_cw) {
         uint8_t lo = current_speed_ & 0xFF;
         uint8_t hi = (current_speed_ >> 8) & 0x7F;
-        if (!send_cw) hi |= 0x80;
+        if (!phys_cw) hi |= 0x80;  // bit směru
 
         std::vector<uint8_t> p = {0x2E, lo, hi};
         send_packet_(servo_id_, 0x03, p);
 
         last_sent_speed = current_speed_;
-        last_sent_cw    = send_cw;
+        last_sent_cw    = phys_cw;
       }
     } else {
+      // když se nemá hýbat, další pohyb začne "od nuly"
       last_sent_speed = -1;
     }
   }
 
   // ===== SOFT KONCÁKY =====
-  if (moving_) {
+  // Pozn.: během kalibrace jsou vypnuté, aby neblokovaly dojetí na dorazy
+  if (moving_ && !calibration_active_) {
 
-    bool phys_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
-
-    // HORNÍ KONCÁK – 100 %
-    if (has_zero_ && total <= STOP_EPS && !phys_cw) {
+    // HORNÍ KONCÁK – 100 % (nahoru = CCW = moving_cw_ == false)
+    if (has_zero_ && total <= STOP_EPS && !moving_cw_) {
+      // tvrdý sync na horní doraz
       turns_unwrapped_ = zero_offset_;
+
+      // přepočet base tak, aby platilo:
+      // turns_unwrapped_ ≈ turns_base_ + raw/RAW_PER_TURN
       float frac = raw / RAW_PER_TURN;
       turns_base_ = static_cast<int32_t>(std::round(turns_unwrapped_ - frac));
 
-      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP");
+      ESP_LOGI(TAG, "SW KONCÁK: 100 %% – STOP (sync pos=%.3f, base=%ld)",
+               turns_unwrapped_, (long) turns_base_);
+
       stop();
     }
 
-    // DOLNÍ KONCÁK – 0 %
-    if (has_max_ && total >= (max_turns_ - STOP_EPS) && phys_cw) {
+    // DOLNÍ KONCÁK – 0 % (dolů = CW = moving_cw_ == true)
+    if (has_max_ && total >= (max_turns_ - STOP_EPS) && moving_cw_) {
+      // tvrdý sync na spodní doraz
       turns_unwrapped_ = zero_offset_ + max_turns_;
+
       float frac = raw / RAW_PER_TURN;
       turns_base_ = static_cast<int32_t>(std::round(turns_unwrapped_ - frac));
 
-      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP");
+      ESP_LOGI(TAG, "SW KONCÁK: 0 %% – STOP (sync pos=%.3f, base=%ld)",
+               turns_unwrapped_, (long) turns_base_);
+
       stop();
     }
   }
@@ -408,7 +442,8 @@ void St3215Servo::update() {
 
 // ================= MOVE TO PORCENT =================
 void St3215Servo::move_to_percent(float pct) {
-  if (!has_zero_ || !has_max_) return;
+  if (!has_zero_ || !has_max_)
+    return;
 
   if (pct < 0.0f) pct = 0.0f;
   if (pct > 100.0f) pct = 100.0f;
@@ -416,7 +451,7 @@ void St3215Servo::move_to_percent(float pct) {
   target_percent_ = pct;
   position_mode_ = true;
 
-  float current = percent_sensor_ ? percent_sensor_->state : 0.0f;
+  float current = (percent_sensor_) ? percent_sensor_->state : 0.0f;
 
   if (fabs(current - pct) < 1.0f) {
     stop();
@@ -424,13 +459,27 @@ void St3215Servo::move_to_percent(float pct) {
     return;
   }
 
-  bool logical_cw = pct < current;
-  rotate(logical_cw, POSITION_SPEED);
+  if (pct > current) {
+    // otevřít (CCW) – NAHORU
+    rotate(false, POSITION_SPEED);
+  } else {
+    // zavřít (CW) – DOLŮ
+    rotate(true, POSITION_SPEED);
+  }
 }
 
 // ================= TORQUE =================
 void St3215Servo::set_torque(bool on) {
+  // Původně dva napevno zadrátované pakety s checksumem jen pro ID=1:
+  // const uint8_t torque_on[]  = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x01,0xCE};
+  // const uint8_t torque_off[] = {0xFF,0xFF,servo_id_,0x04,0x03,0x28,0x00,0xCF};
+  // if (on) write_array(torque_on, sizeof(torque_on));
+  // else write_array(torque_off, sizeof(torque_off));
+  // flush();
+
+  // Nově používáme send_packet_, který checksum dopočítá správně pro jakékoli servo_id.
   send_packet_(servo_id_, 0x03, {0x28, static_cast<uint8_t>(on ? 0x01 : 0x00)});
+
   torque_on_ = on;
   if (torque_switch_) torque_switch_->publish_state(on);
 }
@@ -441,6 +490,12 @@ void St3215Servo::stop() {
   current_speed_ = 0;
   position_mode_ = false;
 
+  // Původní napevno zadrátovaný paket s checksumem pro ID=1:
+  // const uint8_t stop_cmd[] = {0xFF,0xFF,servo_id_,0x0A,0x03,0x2A,0x32,0x00,0x00,0x03,0x00,0x00,0x00,0x92};
+  // write_array(stop_cmd, sizeof(stop_cmd));
+  // flush();
+
+  // Nově generujeme paket přes send_packet_ – checksum se spočítá správně pro libovolné servo_id.
   std::vector<uint8_t> params = {
     0x2A, 0x32,
     0x00, 0x00,
@@ -453,11 +508,15 @@ void St3215Servo::stop() {
   if (open_switch_)  open_switch_->publish_state(false);
   if (close_switch_) close_switch_->publish_state(false);
 
-  if (has_zero_ && has_max_) save_calibration_();
+  // máme kalibraci → uložíme i aktuální polohu
+  if (has_zero_ && has_max_) {
+    save_calibration_();
+  }
 }
 
 // ================= ROTATE =================
 void St3215Servo::rotate(bool cw, int speed) {
+  // cw = logický směr DOLŮ (bez ohledu na mechaniku / invert_direction)
   moving_ = true;
   moving_cw_ = cw;
 
@@ -498,8 +557,23 @@ void St3215Servo::confirm_calibration_step() {
     has_max_ = true;
     calibration_active_ = false;
     update_calib_state_(CALIB_DONE);
-    save_calibration_();
+
+    // kalibrace hotová → uložit do flash včetně aktuální polohy
+    this->save_calibration_();
   }
+}
+
+void St3215Servo::set_zero() {
+  zero_offset_ = turns_unwrapped_;
+  has_zero_ = true;
+}
+
+void St3215Servo::set_max() {
+  if (!has_zero_) return;
+  float span = fabsf(turns_unwrapped_ - zero_offset_);
+  if (span < 0.3f) return;
+  max_turns_ = span;
+  has_max_ = true;
 }
 
 // ================= SWITCH =================
