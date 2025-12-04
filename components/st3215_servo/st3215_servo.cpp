@@ -408,7 +408,7 @@ void St3215Servo::update() {
       bool phys_cw = invert_direction_ ? !moving_cw_ : moving_cw_;
   
       // === DEBUG SMĚRU A SPEED ===
-      ESP_LOGD(TAG, "[SEND] speed=%d phys_cw=%d", current_speed_, phys_cw ? 1 : 0);
+      // ESP_LOGD(TAG, "[SEND] speed=%d phys_cw=%d", current_speed_, phys_cw ? 1 : 0);
   
       // pošleme nový paket jen pokud se rychlost nebo fyzický směr změnily
       if (current_speed_ != last_sent_speed || phys_cw != last_sent_cw) {
