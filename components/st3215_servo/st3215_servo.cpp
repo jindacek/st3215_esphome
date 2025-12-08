@@ -354,6 +354,15 @@ void St3215Servo::update() {
     }
   }
 
+  // ===== SAVE UPDATED RAMP FACTOR =====
+  if (pending_ramp_save_) {
+      const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
+      auto pref_ramp = global_preferences->make_preference<float>(rbase);
+      pref_ramp.save(&ramp_factor_);
+      ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
+      pending_ramp_save_ = false;
+  }
+  
   // ===== RAMP ENGINE =====
   uint32_t now = millis();
   if (now - last_ramp_update_ >= RAMP_DT_MS) {
