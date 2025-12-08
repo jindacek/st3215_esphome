@@ -203,17 +203,17 @@ void St3215Servo::setup() {
   bool loaded = this->load_calibration_();
 
   // Zkusíme načíst ramp_factor_ z flash (samostatný blok per-servo)
-  {
-    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
-    auto pref_ramp = global_preferences->make_preference<float>(rbase);
-    float rf = 0.0f;
-    if (pref_ramp.load(&rf)) {
-      ramp_factor_ = rf;
-      ESP_LOGI(TAG, "Ramp factor loaded from flash: %.2f", ramp_factor_);
-    } else {
-      ESP_LOGI(TAG, "No stored ramp factor, using default %.2f", ramp_factor_);
-    }
-  }
+  // {
+    // const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
+    // auto pref_ramp = global_preferences->make_preference<float>(rbase);
+    // float rf = 0.0f;
+    // if (pref_ramp.load(&rf)) {
+      // ramp_factor_ = rf;
+      // ESP_LOGI(TAG, "Ramp factor loaded from flash: %.2f", ramp_factor_);
+    // } else {
+      // ESP_LOGI(TAG, "No stored ramp factor, using default %.2f", ramp_factor_);
+    // }
+  // }
   
   // ===== INIT STAVU KALIBRACE =====
   if (!has_zero_ || !has_max_) {
@@ -355,13 +355,13 @@ void St3215Servo::update() {
   }
 
   // ===== SAVE UPDATED RAMP FACTOR =====
-  if (pending_ramp_save_) {
-      const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
-      auto pref_ramp = global_preferences->make_preference<float>(rbase);
-      pref_ramp.save(&ramp_factor_);
-      ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
-      pending_ramp_save_ = false;
-  }
+  // if (pending_ramp_save_) {
+      // const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
+      // auto pref_ramp = global_preferences->make_preference<float>(rbase);
+      // pref_ramp.save(&ramp_factor_);
+      // ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
+      // pending_ramp_save_ = false;
+  // }
   
   // ===== RAMP ENGINE =====
   uint32_t now = millis();
@@ -564,12 +564,12 @@ void St3215Servo::stop() {
   }
 
   // Uložíme i aktuální ramp_factor_ (nezávisle na kalibraci)
-  {
-    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
-    auto pref_ramp = global_preferences->make_preference<float>(rbase);
-    pref_ramp.save(&ramp_factor_);
-    ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
-  }
+  // {
+    // const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
+    // auto pref_ramp = global_preferences->make_preference<float>(rbase);
+    // pref_ramp.save(&ramp_factor_);
+    // ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
+  // }
 }
 
 // ================= ROTATE =================
