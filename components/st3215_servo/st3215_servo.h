@@ -61,17 +61,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_torque(bool on);
 
   // Rampa Factor
-  void set_ramp_factor(float f) {
-    ramp_factor_ = f;
-
-    // okamžité uložení do NVS
-    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
-    auto pref_ramp = global_preferences->make_preference<float>(rbase);
-    pref_ramp.save(&ramp_factor_);
-
-    ESP_LOGI(TAG, "Ramp factor saved to flash immediately: %.2f", ramp_factor_);
-  }
-
+  void set_ramp_factor(float f) { ramp_factor_ = f; pending_ramp_save_ = true; }
 
   // Kalibrace
   void set_zero();
