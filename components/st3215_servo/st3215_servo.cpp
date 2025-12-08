@@ -370,7 +370,7 @@ void St3215Servo::update() {
   
     if (has_zero_ && has_max_) {
       // 1) Základní brzdění podle vzdálenosti (S-křivka)
-      if (dist < DECEL_ZONE) {
+      if (dist < DECEL_ZONE * ramp_factor_) {
         float k = dist / DECEL_ZONE;
         if (k < 0) k = 0;
         if (k > 1) k = 1;
@@ -383,7 +383,7 @@ void St3215Servo::update() {
       float predictive_brake = dist_delta * 1.4f;  // koeficient pro doladění
   
       if (predictive_brake > 0.01f) {
-        effective -= (int)(predictive_brake * 800.0f);
+        effective -= (int)(predictive_brake * 800.0f * ramp_factor_);
         if (effective < SPEED_MIN)
           effective = SPEED_MIN;
       }
