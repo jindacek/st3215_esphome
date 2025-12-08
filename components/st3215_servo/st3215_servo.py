@@ -28,7 +28,7 @@ _SERVO_SCHEMA = cv.Schema(
 
         # 👉 NOVÉ: invertace směru
         cv.Optional(CONF_INVERT_DIRECTION, default=False): cv.boolean,
-
+        cv.Optional("ramp_factor", default=1.0): cv.float_range(min=0.5, max=2.5),
         cv.Optional("angle"): sensor.sensor_schema(unit_of_measurement=UNIT_DEGREES),
         cv.Optional("turns"): sensor.sensor_schema(),
         cv.Optional("percent"): sensor.sensor_schema(unit_of_measurement=UNIT_PERCENT),
@@ -52,7 +52,9 @@ async def to_code(config):
 
         # 👉 NOVÉ:
         cg.add(var.set_invert_direction(conf[CONF_INVERT_DIRECTION]))
-
+        if "ramp_factor" in conf:
+            cg.add(var.set_ramp_factor(conf["ramp_factor"]))    
+        
         if "angle" in conf:
             sens = await sensor.new_sensor(conf["angle"])
             cg.add(var.set_angle_sensor(sens))
