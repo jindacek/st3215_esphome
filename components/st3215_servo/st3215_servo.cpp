@@ -559,6 +559,7 @@ void St3215Servo::stop() {
     const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_);
     auto pref_ramp = global_preferences->make_preference<float>(rbase);
     pref_ramp.save(&ramp_factor_);
+    ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
   }
 }
 
