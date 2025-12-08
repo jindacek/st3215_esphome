@@ -204,7 +204,7 @@ void St3215Servo::setup() {
 
   // Zkusíme načíst ramp_factor_ z flash (samostatný blok per-servo)
   {
-    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_);
+    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
     auto pref_ramp = global_preferences->make_preference<float>(rbase);
     float rf = 0.0f;
     if (pref_ramp.load(&rf)) {
@@ -556,7 +556,7 @@ void St3215Servo::stop() {
 
   // Uložíme i aktuální ramp_factor_ (nezávisle na kalibraci)
   {
-    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_);
+    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_) * 10u;
     auto pref_ramp = global_preferences->make_preference<float>(rbase);
     pref_ramp.save(&ramp_factor_);
     ESP_LOGI(TAG, "Ramp factor saved to flash: %.2f", ramp_factor_);
