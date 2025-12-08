@@ -382,10 +382,10 @@ void St3215Servo::update() {
       }
     
       // 2) Prediktivní brzdění – když se blížíme moc rychle, uber ještě víc
-      float predictive_brake = dist_delta * 1.4f;  // koeficient pro doladění
+      float predictive_brake = dist_delta * (1.4f * ramp_factor_);  // koeficient pro doladění
     
       if (predictive_brake > 0.01f) {
-        effective -= (int)(predictive_brake * 800.0f * ramp_factor_);
+        effective -= (int)(predictive_brake * 800.0f * (ramp_factor_ * ramp_factor_));
         if (effective < SPEED_MIN)
           effective = SPEED_MIN;
       }
