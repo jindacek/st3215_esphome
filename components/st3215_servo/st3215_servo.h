@@ -110,6 +110,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
   // Rampa Factor
   float ramp_factor_ = 1.0f;
+  bool pending_ramp_save_ = false;
 
   // Kalibrace
   bool calibration_active_{false};
