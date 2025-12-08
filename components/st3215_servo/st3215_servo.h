@@ -60,6 +60,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void stop();
   void set_torque(bool on);
 
+  // Rampa Factor
+  void set_ramp_factor(float f) { ramp_factor_ = f; }
+
   // Kalibrace
   void set_zero();
   void set_max();
@@ -104,6 +107,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   // Persistentní kalibrace + poloha (NVS)
   bool load_calibration_();
   void save_calibration_();
+
+  // Rampa Factor
+  float ramp_factor_ = 1.0f;
 
   // Kalibrace
   bool calibration_active_{false};
