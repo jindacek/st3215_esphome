@@ -202,6 +202,19 @@ void St3215Servo::setup() {
   // Zkusíme načíst kalibraci + polohu z flash
   bool loaded = this->load_calibration_();
 
+  // Zkusíme načíst ramp_factor_ z flash (samostatný blok per-servo)
+  {
+    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_);
+    auto pref_ramp = global_preferences->make_preference<float>(rbase);
+    float rf = 0.0f;
+    if (pref_ramp.load(&rf)) {
+      ramp_factor_ = rf;
+      ESP_LOGI(TAG, "Ramp factor loaded from flash: %.2f", ramp_factor_);
+    } else {
+      ESP_LOGI(TAG, "No stored ramp factor, using default %.2f", ramp_factor_);
+    }
+  }
+  
   // ===== INIT STAVU KALIBRACE =====
   if (!has_zero_ || !has_max_) {
     update_calib_state_(CALIB_IDLE);
@@ -539,6 +552,13 @@ void St3215Servo::stop() {
   // máme kalibraci → uložíme i aktuální polohu
   if (has_zero_ && has_max_) {
     save_calibration_();
+  }
+
+  // Uložíme i aktuální ramp_factor_ (nezávisle na kalibraci)
+  {
+    const uint32_t rbase = 0x2000u + static_cast<uint32_t>(servo_id_);
+    auto pref_ramp = global_preferences->make_preference<float>(rbase);
+    pref_ramp.save(&ramp_factor_);
   }
 }
 
