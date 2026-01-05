@@ -578,6 +578,9 @@ void St3215Servo::rotate(bool cw, int speed) {
   moving_ = true;
   moving_cw_ = cw;
 
+  position_dirty_ = true;          // ⬅️ pozice se změnila
+  last_motion_time_ = millis();    // ⬅️ uložíme čas pohybu
+
   if (speed < 0) speed = -speed;
   if (speed > SPEED_MAX) speed = SPEED_MAX;
   target_speed_ = speed;
