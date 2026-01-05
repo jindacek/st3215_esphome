@@ -137,7 +137,7 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
   std::vector<uint8_t> buf;
   buf.reserve(32);
 
-  while (millis() - start < 150) {
+  while (millis() - start < 15) {
 
     while (available()) {
       buf.push_back(read());
@@ -560,7 +560,7 @@ void St3215Servo::stop() {
 
   // máme kalibraci → uložíme i aktuální polohu
   if (has_zero_ && has_max_) {
-    save_calibration_();
+    // save_calibration_();
   }
 
   // Uložíme i aktuální ramp_factor_ (nezávisle na kalibraci)
