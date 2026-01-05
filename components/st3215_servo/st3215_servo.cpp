@@ -130,7 +130,14 @@ void St3215Servo::send_packet_(uint8_t id, uint8_t cmd,
 // ================= READ REGISTERS =================
 bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
                                   std::vector<uint8_t> &out) {
-  // Nečistíme agresivně RX buffer, jen pošleme dotaz
+  // ===== DŮLEŽITÉ =====
+  // VYČISTÍME RX BUFFER PŘED NOVÝM DOTAZEM
+  // (zabrání rozhození parseru zbytkovými bajty z minulého čtení)
+  while (available()) {
+    read();
+  }
+
+  // Nečistíme agresivně RX buffer během čtení, jen pošleme dotaz
   send_packet_(id, 0x02, {addr, len});
 
   uint32_t start = millis();
@@ -139,50 +146,64 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
 
   while (millis() - start < 15) {
 
+    // ===== SBĚR DAT Z UARTU =====
     while (available()) {
       buf.push_back(read());
+
+      // pojistka proti přerůstání bufferu
       if (buf.size() > 64)
         buf.erase(buf.begin(), buf.begin() + (buf.size() - 64));
     }
 
+    // ===== HLEDÁNÍ HLAVIČKY FF FF =====
     while (buf.size() >= 2 && !(buf[0] == 0xFF && buf[1] == 0xFF))
       buf.erase(buf.begin());
 
-    if (buf.size() < 6) continue;
+    if (buf.size() < 6)
+      continue;
 
-    uint8_t rid = buf[2];
+    uint8_t rid  = buf[2];
     uint8_t rlen = buf[3];
 
+    // ===== KONTROLA DÉLKY =====
     if (rlen < 2 || rlen > 20) {
       buf.erase(buf.begin());
       continue;
     }
 
     size_t full_len = rlen + 4;
-    if (buf.size() < full_len) continue;
+    if (buf.size() < full_len)
+      continue;
 
     uint8_t err = buf[4];
+
+    // ===== KONTROLA ID A ERROR BYTE =====
     if (rid != id || err != 0) {
       buf.erase(buf.begin(), buf.begin() + full_len);
       continue;
     }
 
-    uint8_t chk = buf[full_len - 1];
+    // ===== KONTROLA CHECKSUM =====
+    uint8_t chk  = buf[full_len - 1];
     uint8_t calc = checksum_(buf.data(), full_len - 1);
     if (chk != calc) {
       buf.erase(buf.begin(), buf.begin() + full_len);
       continue;
     }
 
+    // ===== DATA =====
     uint8_t data_len = rlen - 2;
     if (data_len < len) {
       buf.erase(buf.begin(), buf.begin() + full_len);
       continue;
     }
 
+    // Vše OK → zkopíruj data ven
     out.assign(buf.begin() + 5, buf.begin() + 5 + len);
     return true;
   }
+
+  // Timeout → odpověď nepřišla / byla nevalidní
   return false;
 }
 
