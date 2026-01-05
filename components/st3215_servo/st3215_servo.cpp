@@ -488,6 +488,16 @@ void St3215Servo::update() {
       stop();
     }
   }
+  // ===== ODKLÁDANÝ ZÁPIS POZICE DO FLASH =====
+  if (!moving_ &&
+      position_dirty_ &&
+      has_zero_ && has_max_ &&
+      millis() - last_motion_time_ > 3000) {
+
+    ESP_LOGI(TAG, "Saving position to flash (debounced)");
+    save_calibration_();
+    position_dirty_ = false;
+  }
 }
 
 // ================= MOVE TO PORCENT =================
