@@ -144,7 +144,7 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   // ===== ENCODER FAULT =====
   uint8_t encoder_fail_count_{0};
   bool encoder_fault_{false};
-  static constexpr uint8_t ENCODER_FAIL_LIMIT = 3;
+  static constexpr uint8_t ENCODER_FAIL_LIMIT = 5;
 
   // ===== ODKLÁDANÝ ZÁPIS POZICE DO FLASH =====
   uint32_t last_motion_time_{0};
