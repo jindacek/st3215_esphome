@@ -284,11 +284,17 @@ void St3215Servo::update() {
   if (!read_registers_(servo_id_, 0x38, 2, pos)) {
     encoder_fail_count_++;
 
-    if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT && !encoder_fault_) {
+    // ENCODER FAULT vyhlašujeme jen tehdy,
+    // když se servo MĚLO HÝBAT
+    if (encoder_fail_count_ >= ENCODER_FAIL_LIMIT &&
+        !encoder_fault_ &&
+        moving_) {
+
       ESP_LOGE(TAG, "ENCODER FAULT → EMERGENCY STOP");
       stop();                // okamžitě zastavit
       encoder_fault_ = true; // zbytek logiky přerušíme, dokud se neprovede recovery
     }
+
     return;
   }
 
