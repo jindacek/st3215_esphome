@@ -621,16 +621,10 @@ void St3215Servo::rotate(bool cw, int speed) {
   last_motion_time_ = millis();    // ⬅️ uložíme čas pohybu
 
   // ===== PUBLISH OPENING / CLOSING =====
-  if (cw) {
-    // DOLŮ = zavírání
-    if (close_switch_) close_switch_->publish_state(true);
-    if (open_switch_)  open_switch_->publish_state(false);
-  } else {
-    // NAHORU = otevírání
-    if (open_switch_)  open_switch_->publish_state(true);
-    if (close_switch_) close_switch_->publish_state(false);
-  }
-  
+  motion_state_ = cw
+      ? MotionState::CLOSING
+      : MotionState::OPENING;
+
   if (speed < 0) speed = -speed;
   if (speed > SPEED_MAX) speed = SPEED_MAX;
   target_speed_ = speed;
