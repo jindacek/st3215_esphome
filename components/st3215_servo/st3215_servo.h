@@ -132,6 +132,16 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   bool moving_{false};
   bool moving_cw_{false};
 
+  // Stav pohybu pro cover entitu
+  enum class MotionState {
+    IDLE,
+    OPENING,
+    CLOSING
+  };
+
+  MotionState motion_state_{MotionState::IDLE};
+
+
   // ===== RAMP ENGINE =====
   int target_speed_{0};
   int current_speed_{0};
