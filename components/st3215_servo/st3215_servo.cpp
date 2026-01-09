@@ -592,6 +592,7 @@ void St3215Servo::stop() {
   send_packet_(servo_id_, 0x03, params);
 
   moving_ = false;
+  motion_state_ = MotionState::IDLE;
   last_motion_time_ = millis();   // ⬅️ zapamatuj si, kdy servo zastavilo
   
   if (open_switch_)  open_switch_->publish_state(false);
