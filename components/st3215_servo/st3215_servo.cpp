@@ -598,6 +598,11 @@ void St3215Servo::stop() {
   if (open_switch_)  open_switch_->publish_state(false);
   if (close_switch_) close_switch_->publish_state(false);
 
+  // IDLE + pozice
+  if (cover_ != nullptr) {
+    cover_->publish_state(cover::COVER_OPERATION_IDLE);
+  }
+
   // máme kalibraci → uložíme i aktuální polohu
   if (has_zero_ && has_max_) {
     // save_calibration_();
@@ -626,6 +631,14 @@ void St3215Servo::rotate(bool cw, int speed) {
       ? MotionState::CLOSING
       : MotionState::OPENING;
 
+  if (cover_ != nullptr) {
+    if (cw) {
+      cover_->publish_state(cover::COVER_OPERATION_CLOSING);
+    } else {
+      cover_->publish_state(cover::COVER_OPERATION_OPENING);
+    }
+  }
+  
   if (speed < 0) speed = -speed;
   if (speed > SPEED_MAX) speed = SPEED_MAX;
   target_speed_ = speed;
