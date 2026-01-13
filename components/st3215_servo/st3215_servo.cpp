@@ -625,6 +625,7 @@ void St3215Servo::rotate(bool cw, int speed) {
   // cw = logický směr DOLŮ (bez ohledu na mechaniku / invert_direction)
   moving_ = true;
   moving_cw_ = cw;
+  publish_state_(moving_cw_ ? "Zavírá se" : "Otevírá se");
 
   position_dirty_ = true;          // ⬅️ pozice se změnila
   last_motion_time_ = millis();    // ⬅️ uložíme čas pohybu
