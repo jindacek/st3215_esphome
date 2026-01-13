@@ -134,6 +134,10 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
 
   St3215TorqueSwitch *torque_switch_{nullptr};
 
+  // Textový senzor stavu: "Otevírá se" / "Zavírá se" / "Stojí"
+  text_sensor::TextSensor *state_sensor_{nullptr};
+  std::string last_state_{};
+
   // Stav pohybu pro SW koncáky (logický směr: CW = DOLŮ, CCW = NAHORU)
   bool moving_{false};
   bool moving_cw_{false};
@@ -167,6 +171,8 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   uint8_t checksum_(const uint8_t *data, size_t len);
   void send_packet_(uint8_t id, uint8_t cmd, const std::vector<uint8_t> &params);
   bool read_registers_(uint8_t id, uint8_t addr, uint8_t len, std::vector<uint8_t> &out);
+
+  void publish_state_(const std::string &s);
 
   void update_calib_state_(CalibState s);
 };
