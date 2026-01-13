@@ -207,6 +207,14 @@ bool St3215Servo::read_registers_(uint8_t id, uint8_t addr, uint8_t len,
   return false;
 }
 
+// ================= STATE SENSOR =================
+void St3215Servo::publish_state_(const std::string &s) {
+  if (state_sensor_ == nullptr) return;
+  if (s == last_state_) return;
+  last_state_ = s;
+  state_sensor_->publish_state(s);
+}
+
 // ================= SETUP =================
 void St3215Servo::setup() {
   ESP_LOGI(TAG, "ST3215 init ID=%u invert=%d", servo_id_, invert_direction_);
