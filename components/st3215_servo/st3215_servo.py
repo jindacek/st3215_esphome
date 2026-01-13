@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import uart, sensor, switch
 from esphome.const import CONF_ID, CONF_UART_ID, UNIT_DEGREES, UNIT_PERCENT
 
-DEPENDENCIES = ["uart", "sensor", "switch"]
+DEPENDENCIES = ["uart", "sensor", "switch", "text_sensor"]
 AUTO_LOAD = ["switch"]
 
 st3215_ns = cg.esphome_ns.namespace("st3215_servo")
@@ -17,6 +17,7 @@ CONF_TORQUE_SWITCH = "torque_switch"
 
 # 👉 NOVÉ:
 CONF_INVERT_DIRECTION = "invert_direction"
+CONF_STATE_SENSOR = "state_sensor"
 
 _SERVO_SCHEMA = cv.Schema(
     {
@@ -34,6 +35,7 @@ _SERVO_SCHEMA = cv.Schema(
         cv.Optional("percent"): sensor.sensor_schema(unit_of_measurement=UNIT_PERCENT),
         cv.Optional("calib_state"): sensor.sensor_schema(),
         cv.Optional(CONF_TORQUE_SWITCH): switch.switch_schema(St3215TorqueSwitch),
+        cv.Optional(CONF_STATE_SENSOR): text_sensor.text_sensor_schema(),
     }
 ).extend(uart.UART_DEVICE_SCHEMA)
 
@@ -71,6 +73,10 @@ async def to_code(config):
             sens = await sensor.new_sensor(conf["calib_state"])
             cg.add(var.set_calib_state_sensor(sens))
 
+        if CONF_STATE_SENSOR in conf:
+            ts = await text_sensor.new_text_sensor(conf[CONF_STATE_SENSOR])
+            cg.add(var.set_state_sensor(ts))
+        
         if CONF_TORQUE_SWITCH in conf:
             sw = await switch.new_switch(conf[CONF_TORQUE_SWITCH])
             await cg.register_component(sw, conf[CONF_TORQUE_SWITCH])
