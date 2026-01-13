@@ -7,6 +7,9 @@
 #include "esphome/components/number/number.h"
 #include "esphome/core/helpers.h"
 #include <vector>
+#include "esphome/components/text_sensor/text_sensor.h"
+#include <string>
+
 
 namespace esphome {
 namespace st3215_servo {
@@ -74,6 +77,9 @@ class St3215Servo : public PollingComponent, public uart::UARTDevice {
   void set_turns_sensor(sensor::Sensor *s) { turns_sensor_ = s; }
   void set_percent_sensor(sensor::Sensor *s) { percent_sensor_ = s; }
   void set_calib_state_sensor(sensor::Sensor *s) { calib_state_sensor_ = s; }
+
+  // Textový senzor stavu pohybu
+  void set_state_sensor(text_sensor::TextSensor *s) { state_sensor_ = s; }
 
   // Switch
   void set_torque_switch(St3215TorqueSwitch *s);
